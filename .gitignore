@@ -1,0 +1,25 @@
+# data
+data/
+!data/README.md
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# tooling
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.opencode/
+
+# copyrighted source papers (kept locally, not distributed)
+research/
+
+# large artifacts
+*.parquet
+*.pt
+*.pkl
