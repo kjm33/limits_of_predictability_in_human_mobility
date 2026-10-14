@@ -29,6 +29,7 @@ from __future__ import annotations
 import math
 import random
 import time
+from pathlib import Path
 from typing import TypedDict, cast
 
 import numpy as np
@@ -364,14 +365,16 @@ def _per_user_eval(
     return rows
 
 
-def run_deep(epochs: int = 3) -> None:
+def run_deep(epochs: int = 3, processed_dir: Path | None = None) -> None:
     """Train + evaluate the three models on the cohort, save results, print summary."""
     t_start = time.perf_counter()
-    seq = pd.read_parquet(config.PROCESSED / "seq_hourly.parquet")
-    cells = pd.read_parquet(config.PROCESSED / "cells_r8.parquet")
-    trips = pd.read_parquet(config.PROCESSED / "trips.parquet")
-    cohort = pd.read_parquet(config.PROCESSED / "cohort.parquet")
-    baselines = pd.read_parquet(config.PROCESSED / "baseline_hourly_results.parquet")
+    pdir = processed_dir or config.PROCESSED
+    cache_dir = pdir / "cache" / "deep"
+    seq = pd.read_parquet(pdir / "seq_hourly.parquet")
+    cells = pd.read_parquet(pdir / "cells_r8.parquet")
+    trips = pd.read_parquet(pdir / "trips.parquet")
+    cohort = pd.read_parquet(pdir / "cohort.parquet")
+    baselines = pd.read_parquet(pdir / "baseline_hourly_results.parquet")
 
     data = build_dataset(seq, cells, [str(u) for u in cohort["user"]], context_len=CONTEXT_LEN)
     n_train = int(data["split"].sum())
@@ -381,16 +384,18 @@ def run_deep(epochs: int = 3) -> None:
         f"windows={data['targets'].size} (train={n_train}, test={n_test})"
     )
 
-    t0 = time.perf_counter()
-    node_emb = graph_node_embeddings(trips, cells, d=64, iters=10, teleport=0.1)
-    print(f"graph node embeddings: {tuple(node_emb.shape)} in {time.perf_counter() - t0:.1f}s")
-
     models: dict[str, nn.Module] = {
         "deepmove_rnn": DeepMoveRNN(int(data["vocab"])),
         "temporal_transformer": TemporalTransformer(int(data["vocab"])),
-        "graphseq": GraphSeqModel(int(data["vocab"]), node_emb),
     }
-    DEEP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if len(trips):
+        t0 = time.perf_counter()
+        node_emb = graph_node_embeddings(trips, cells, d=64, iters=10, teleport=0.1)
+        print(f"graph node embeddings: {tuple(node_emb.shape)} in {time.perf_counter() - t0:.1f}s")
+        models["graphseq"] = GraphSeqModel(int(data["vocab"]), node_emb)
+    else:
+        print("no trips; skipping GraphSeq (needs the trip transition graph)")
+    cache_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     for name, model in models.items():
         t0 = time.perf_counter()
@@ -398,7 +403,7 @@ def run_deep(epochs: int = 3) -> None:
             model, data["contexts"][data["split"]], data["targets"][data["split"]],
             data["hours"][data["split"]], epochs=epochs, seed=0,
         )
-        torch.save(model.state_dict(), DEEP_CACHE_DIR / f"{name}.pt")
+        torch.save(model.state_dict(), cache_dir / f"{name}.pt")
         user_rows = _per_user_eval(model, data, cells, name)
         rows.extend(user_rows)
         m = pd.DataFrame(user_rows)
@@ -409,7 +414,7 @@ def run_deep(epochs: int = 3) -> None:
         )
 
     results = pd.DataFrame(rows, columns=_RESULT_COLUMNS)
-    results.to_parquet(config.PROCESSED / "deep_results.parquet", index=False)
+    results.to_parquet(pdir / "deep_results.parquet", index=False)
 
     combined = pd.concat(
         [
@@ -421,8 +426,8 @@ def run_deep(epochs: int = 3) -> None:
     print("\n=== hourly next-cell: baselines vs deep (per-user means) ===")
     print(summary.to_string())
     print(f"\ntotal: {time.perf_counter() - t_start:.1f}s")
-    print(f"results -> {config.PROCESSED / 'deep_results.parquet'}")
-    print(f"model state_dicts -> {DEEP_CACHE_DIR}/<model>.pt")
+    print(f"results -> {pdir / 'deep_results.parquet'}")
+    print(f"model state_dicts -> {cache_dir}/<model>.pt")
 
 
 if __name__ == "__main__":

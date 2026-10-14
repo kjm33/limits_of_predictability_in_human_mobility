@@ -367,26 +367,27 @@ def evaluate_random_walk(
     return out.sort_values(["user", "method"]).reset_index(drop=True)
 
 
-def run_graphs() -> None:
+def run_graphs(processed_dir: Path | None = None) -> None:
     """Build graphs + analytics + random-walk evaluation from processed parquets."""
-    stops = pd.read_parquet(config.PROCESSED / "stops.parquet")
-    trips = pd.read_parquet(config.PROCESSED / "trips.parquet")
-    cohort_path = config.PROCESSED / "cohort.parquet"
+    pdir = processed_dir or config.PROCESSED
+    stops = pd.read_parquet(pdir / "stops.parquet")
+    trips = pd.read_parquet(pdir / "trips.parquet")
+    cohort_path = pdir / "cohort.parquet"
     if cohort_path.exists():
         cohort = pd.read_parquet(cohort_path)["user"]
         stops = stops[stops["user"].isin(cohort)]
         trips = trips[trips["user"].isin(cohort)]
 
-    out_dir = config.PROCESSED / "graphs"
+    out_dir = pdir / "graphs"
     graphs = build_all_graphs(stops, trips, out_dir=out_dir)
     g_global = build_global_graph(trips)
     nx.write_graphml(g_global, out_dir / "global.graphml")
 
     rows = [{"user": user, **graph_analytics(g)} for user, g in graphs.items()]
     rows.append({"user": "__global__", **graph_analytics(g_global)})
-    pd.DataFrame(rows).to_parquet(config.PROCESSED / "graph_analytics.parquet", index=False)
+    pd.DataFrame(rows).to_parquet(pdir / "graph_analytics.parquet", index=False)
 
-    seq_path = config.PROCESSED / "seq_hourly.parquet"
+    seq_path = pdir / "seq_hourly.parquet"
     if seq_path.exists():
         seq_hourly = pd.read_parquet(seq_path)
         cells = sorted(set(trips["o_h3_r8"].dropna()) | set(trips["d_h3_r8"].dropna()))
@@ -394,7 +395,7 @@ def run_graphs() -> None:
     else:
         print(f"{seq_path.name} not found; skipping random-walk evaluation")
         rw = pd.DataFrame(columns=RW_COLUMNS)
-    rw.to_parquet(config.PROCESSED / "rw_results.parquet", index=False)
+    rw.to_parquet(pdir / "rw_results.parquet", index=False)
 
     total_nodes = sum(g.number_of_nodes() for g in graphs.values())
     total_edges = sum(g.number_of_edges() for g in graphs.values())

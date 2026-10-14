@@ -6,6 +6,8 @@ routine cards (weekday × 15-min bucket) → trigger rule for proactive suggesti
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN
@@ -320,16 +322,18 @@ def run_routines(
     bucket_min: int = 15,
     min_support_weeks: int = 3,
     min_confidence: float = 0.5,
+    processed_dir: Path | None = None,
 ) -> pd.DataFrame:
-    stops = pd.read_parquet(config.PROCESSED / "stops.parquet")
-    trips = pd.read_parquet(config.PROCESSED / "trips.parquet")
+    pdir = processed_dir or config.PROCESSED
+    stops = pd.read_parquet(pdir / "stops.parquet")
+    trips = pd.read_parquet(pdir / "trips.parquet")
     stops_p, places = cluster_places(stops)
     routines = mine_routines(stops_p, places, trips, bucket_min, min_support_weeks, min_confidence)
     eval_df = evaluate_trigger(routines, stops_p, trips, places)
-    stops_p.to_parquet(config.PROCESSED / "places.parquet", index=False)
-    places.to_parquet(config.PROCESSED / "places_summary.parquet", index=False)
-    routines.to_parquet(config.PROCESSED / "routines.parquet", index=False)
-    eval_df.to_parquet(config.PROCESSED / "trigger_eval.parquet", index=False)
+    stops_p.to_parquet(pdir / "places.parquet", index=False)
+    places.to_parquet(pdir / "places_summary.parquet", index=False)
+    routines.to_parquet(pdir / "routines.parquet", index=False)
+    eval_df.to_parquet(pdir / "trigger_eval.parquet", index=False)
     fired = eval_df["n_fired"].sum()
     hits = eval_df["n_hits"].sum()
     n_users = routines["user"].nunique() if len(routines) else 0

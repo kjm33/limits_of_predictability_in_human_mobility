@@ -10,7 +10,9 @@ from mobility.baselines import (
     TimeConditionedPredictor,
     distance_error_km,
     evaluate_hourly,
+    evaluate_hourly_sharded,
     evaluate_trip_destination,
+    run_baselines,
     temporal_split,
     topk_accuracy,
     trip_destination_accuracy,
@@ -254,3 +256,84 @@ def test_evaluate_trip_destination():
     assert mk_bad["n_eval"] == 3
     mk_b = res_bad.loc[(res_bad["predictor"] == "trip_markov") & (res_bad["user"] == "B")].iloc[0]
     assert mk_b["n_eval"] == 4
+
+
+def _sharded_panel(n: int = 96) -> pd.DataFrame:
+    """Five users with varied structure: cycles, UNKNOWN gaps, a short-tail user."""
+    hours = pd.date_range("2020-01-01", periods=n, freq="h")
+    cells_by_user = {
+        "A": [[10, 20, 30][i % 3] if i % 17 != 3 else UNK for i in range(n)],
+        "B": [[40, 50][i % 2] if i % 13 != 5 else UNK for i in range(n)],
+        "C": [[10, 40, 20, 50, 30][(i * 7 + 3) % 5] if i % 11 != 7 else UNK for i in range(n)],
+        "D": [60 if i < 30 or i >= 70 else 10 for i in range(n)],
+        "E": [10 if i < 10 else UNK for i in range(n)],
+    }
+    return pd.concat(
+        [
+            pd.DataFrame({"user": u, "hour": hours, "h3": None, "cell_idx": v})
+            for u, v in cells_by_user.items()
+        ],
+        ignore_index=True,
+    )
+
+
+def test_evaluate_hourly_sharded_equals_monolith(tmp_path):
+    seq = _sharded_panel()
+    cells = cells_frame(
+        {
+            10: BASE_CELL,
+            20: RING[0],
+            30: RING[1],
+            40: RING[2],
+            50: RING[3],
+            60: RING[4],
+        }
+    )
+    seq_path = tmp_path / "seq_hourly.parquet"
+    seq.to_parquet(seq_path)  # user-contiguous by construction
+    mono = evaluate_hourly(seq, cells)
+    # small batch_rows forces multi-batch streaming + user-boundary buffering
+    sharded = evaluate_hourly_sharded(seq_path, cells, n_shards=3, batch_rows=200)
+    # check_dtype=False: concat vs direct construction differ on string-dtype flavor only
+    pd.testing.assert_frame_equal(mono, sharded, check_dtype=False)
+
+
+def test_evaluate_hourly_sharded_allows_non_lexical_user_order(tmp_path):
+    # yjmob layout: rows ordered by integer user id, so the string column is NOT
+    # monotonically sorted ("100" < "11"); contiguity is the real invariant.
+    seq = _sharded_panel()
+    users = list(dict.fromkeys(seq["user"]))
+    seq = pd.concat([seq.loc[seq["user"] == u] for u in reversed(users)], ignore_index=True)
+    cells = cells_frame(
+        {10: BASE_CELL, 20: RING[0], 30: RING[1], 40: RING[2], 50: RING[3], 60: RING[4]}
+    )
+    seq_path = tmp_path / "seq_hourly.parquet"
+    seq.to_parquet(seq_path)
+    sharded = evaluate_hourly_sharded(seq_path, cells, n_shards=2, batch_rows=100)
+    mono = evaluate_hourly(seq, cells)
+    pd.testing.assert_frame_equal(mono, sharded, check_dtype=False)
+
+
+def test_stream_pooled_state_rejects_interleaved_users(tmp_path):
+    seq = _sharded_panel()
+    interleaved = seq.sort_values("hour", kind="stable").reset_index(drop=True)
+    if len(set(interleaved["user"])) < 2:
+        pytest.skip("need multiple users")
+    seq_path = tmp_path / "seq_hourly.parquet"
+    interleaved.to_parquet(seq_path)
+    with pytest.raises(ValueError, match="user-contiguous"):
+        evaluate_hourly_sharded(seq_path, cells_frame({10: BASE_CELL}), n_shards=2)
+
+
+def test_run_baselines_sharded_writes_hourly_results(tmp_path):
+    seq = _sharded_panel()
+    cells = cells_frame(
+        {10: BASE_CELL, 20: RING[0], 30: RING[1], 40: RING[2], 50: RING[3], 60: RING[4]}
+    )
+    seq.to_parquet(tmp_path / "seq_hourly.parquet")
+    cells.to_parquet(tmp_path / "cells_r8.parquet")
+    run_baselines(processed_dir=tmp_path, shards=2)  # no trips.parquet -> skip path
+    saved = pd.read_parquet(tmp_path / "baseline_hourly_results.parquet")
+    expected = evaluate_hourly(seq, cells)
+    pd.testing.assert_frame_equal(saved, expected, check_dtype=False)
+    assert not (tmp_path / "baseline_trip_results.parquet").exists()

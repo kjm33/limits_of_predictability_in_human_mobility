@@ -7,6 +7,8 @@ trips (origin stop -> destination stop).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -188,13 +190,16 @@ def build_trips(stops: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def run_stays(points_path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def run_stays(
+    points_path=None, processed_dir: Path | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """points parquet -> stops.parquet + trips.parquet."""
-    points = pd.read_parquet(points_path or config.PROCESSED / "points.parquet")
+    pdir = processed_dir or config.PROCESSED
+    points = pd.read_parquet(points_path or pdir / "points.parquet")
     stops = stops_with_h3(detect_stays(points))
     trips = build_trips(stops)
-    stops.to_parquet(config.PROCESSED / "stops.parquet", index=False)
-    trips.to_parquet(config.PROCESSED / "trips.parquet", index=False)
+    stops.to_parquet(pdir / "stops.parquet", index=False)
+    trips.to_parquet(pdir / "trips.parquet", index=False)
     print(f"stops: {len(stops):,} trips: {len(trips):,}")
     return stops, trips
 

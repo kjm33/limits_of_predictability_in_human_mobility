@@ -14,11 +14,16 @@ Cell identity is the integer ``cell_idx`` (UNKNOWN = ``config.UNKNOWN``).
 ``evaluate_hourly`` scores next-hour prediction on a per-user chronological
 test split; ``evaluate_trip_destination`` scores destination-cell prediction
 from the trip origin. ``run_baselines`` reads the processed parquets, saves
-result tables to data/processed and prints a summary.
+result tables to data/processed and prints a summary. For datasets whose
+hourly panel exceeds memory (100k+ users), ``evaluate_hourly_sharded`` /
+``run_baselines(shards=N)`` compute the identical result in two passes:
+streaming accumulation of the pooled collective state, then per-user-shard
+evaluation -- bit-exact with the monolithic path.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -80,6 +85,19 @@ def _pad(ranked: list[int] | tuple[int, ...], k: int) -> tuple[int, ...]:
     """Truncate/pad a ranking to exactly k entries (UNK never matches a true cell)."""
     out = list(ranked)[:k]
     return tuple(out + [UNK] * (k - len(out)))
+
+
+def _fill_ranked(
+    ranked: list[int],
+    user: str | None,
+    user_rank: dict[str, tuple[int, ...]],
+    global_rank: tuple[int, ...],
+    k: int,
+) -> tuple[int, ...]:
+    """Pad a partial ranking with the user's (or global) frequency ranking."""
+    ur = user_rank.get(user, ()) if user is not None else ()
+    seen = set(ranked)
+    return _pad(ranked + [c for c in (ur or global_rank) if c not in seen], k)
 
 
 class FrequencyPredictor:
@@ -202,9 +220,7 @@ class MarkovPredictor:
         return self._chains.get(user if self.individual else None)
 
     def _fill(self, ranked: list[int], user: str | None, k: int) -> tuple[int, ...]:
-        user_rank = self._user_rank.get(user, ()) if user is not None else ()
-        seen = set(ranked)
-        return _pad(ranked + [c for c in (user_rank or self._global_rank) if c not in seen], k)
+        return _fill_ranked(ranked, user, self._user_rank, self._global_rank, k)
 
     def predict_ranked(
         self, context: tuple[int, ...] | list[int], user: str | None = None, k: int = 3
@@ -225,6 +241,217 @@ class MarkovPredictor:
 
     def predict(self, context: tuple[int, ...], user: str | None = None) -> int:
         return self.predict_ranked(context, user, k=1)[0]
+
+
+class PooledMarkovPredictor:
+    """Collective order-k Markov over pooled state accumulated by streaming.
+
+    Same prediction semantics as ``MarkovPredictor(individual=False)``:
+    degenerate-order backoff, then user/global frequency fill. The pooled
+    transition tables are sorted numpy arrays (ctx key -> next cells ordered
+    by count desc / cell asc) instead of Python dicts, so state collected
+    across millions of users stays compact. Contexts are big-endian base-V
+    integer codes over the user's last ``order`` known cells (V = vocab size).
+    """
+
+    def __init__(
+        self,
+        order: int,
+        vocab: int,
+        table: pd.DataFrame,
+        user_rank: dict[str, tuple[int, ...]],
+        global_rank: tuple[int, ...],
+    ) -> None:
+        if order < 1:
+            raise ValueError("order must be >= 1")
+        self.order = order
+        self.vocab = vocab
+        self._keys = table["ctx"].to_numpy(dtype=np.int64)
+        self._nxt = table["nxt"].to_numpy(dtype=np.int64)
+        self._user_rank = user_rank
+        self._global_rank = global_rank
+
+    def _key(self, ctx: tuple[int, ...]) -> int:
+        key = 0
+        for c in ctx:
+            key = key * self.vocab + c
+        return key
+
+    def predict_ranked(
+        self, context: tuple[int, ...] | list[int], user: str | None = None, k: int = 3
+    ) -> tuple[int, ...]:
+        ctx = tuple(int(c) for c in context)
+        if len(ctx) > self.order:
+            ctx = ctx[-self.order :]
+        if ctx and UNK not in ctx:
+            keys = self._keys
+            for j in range(min(len(ctx), self.order), 0, -1):
+                key = self._key(ctx[-j:])
+                lo = int(np.searchsorted(keys, key, side="left"))
+                if lo < len(keys) and keys[lo] == key:
+                    hi = int(np.searchsorted(keys, key, side="right"))
+                    ranked = self._nxt[lo:hi].tolist()
+                    return _fill_ranked(ranked, user, self._user_rank, self._global_rank, k)
+        return _fill_ranked([], user, self._user_rank, self._global_rank, k)
+
+    def predict(self, context: tuple[int, ...], user: str | None = None) -> int:
+        return self.predict_ranked(context, user, k=1)[0]
+
+
+class _PairAccumulator:
+    """Associative (ctx_key, nxt) -> count accumulator with periodic compaction."""
+
+    _FLUSH_ROWS = 20_000_000
+
+    def __init__(self) -> None:
+        self._merged: pd.DataFrame | None = None
+        self._parts: list[pd.DataFrame] = []
+        self._pending = 0
+
+    def add(self, ctx: np.ndarray, nxt: np.ndarray, cnt: np.ndarray) -> None:
+        self._parts.append(pd.DataFrame({"ctx": ctx, "nxt": nxt, "cnt": cnt}))
+        self._pending += len(ctx)
+        if self._pending >= self._FLUSH_ROWS:
+            self._flush()
+
+    def _flush(self) -> None:
+        if not self._parts:
+            return
+        objs = self._parts if self._merged is None else [*self._parts, self._merged]
+        df = pd.concat(objs, ignore_index=True)
+        self._merged = df.groupby(["ctx", "nxt"], sort=False, as_index=False)["cnt"].sum()
+        self._parts = []
+        self._pending = 0
+
+    def finalize(self) -> pd.DataFrame:
+        """Rows sorted by ctx asc, count desc, next cell asc (ranking order)."""
+        self._flush()
+        if self._merged is None or self._merged.empty:
+            return pd.DataFrame({"ctx": [], "nxt": [], "cnt": []})
+        return self._merged.sort_values(
+            ["ctx", "cnt", "nxt"], ascending=[True, False, True], kind="stable"
+        ).reset_index(drop=True)
+
+
+def _stream_pooled_state(
+    seq_path: Path, test_frac: float, vocab: int, batch_rows: int = 1_000_000
+) -> tuple[tuple[int, ...], dict[int, pd.DataFrame], list[str]]:
+    """Stream the user-contiguous hourly panel, accumulating pooled predictor state.
+
+    Pass 1 of the sharded path: for every complete user (rows contiguous and
+    verified on the fly; id sort order is irrelevant) apply the same per-user
+    temporal split as the monolith, then accumulate (a) global known-cell
+    counts and (b) pooled order-1..3 transition counts from each user's train
+    sequence. Count summation is associative, so the result equals the
+    monolithic fit.
+    Returns (global_rank, {order: sorted transition table}, sorted users).
+    """
+    import pyarrow.parquet as pq
+
+    orders = (1, 2, 3)
+    if vocab**max(orders) >= 2**62:
+        raise NotImplementedError("vocab too large for int64 context encoding")
+    powvecs = {
+        k: np.array([vocab ** (k - 1 - j) for j in range(k)], dtype=np.int64) for k in orders
+    }
+    gcounts = np.zeros(vocab, dtype=np.int64)
+    acc = {k: _PairAccumulator() for k in orders}
+    users: set[str] = set()
+
+    def process(done: pd.DataFrame) -> None:
+        nonlocal gcounts
+        if done.empty:
+            return
+        users.update(done["user"].unique().tolist())
+        train, _ = temporal_split(done, test_frac)
+        known = train.loc[train["cell_idx"] != UNK, "cell_idx"].to_numpy(dtype=np.int64)
+        if known.size:
+            if known.max() >= vocab:
+                raise ValueError("seq_hourly contains cells missing from the cells vocabulary")
+            gcounts += np.bincount(known, minlength=vocab)
+            for seq in _user_sequences(train).values():
+                for k in orders:
+                    if seq.size <= k:
+                        continue
+                    # windows ending at i-1 pair with seq[i] (ctx = seq[i-k:i], nxt = seq[i])
+                    keys = np.lib.stride_tricks.sliding_window_view(seq, k)[:-1] @ powvecs[k]
+                    nxt = seq[k:]
+                    ukeys, inv = np.unique(keys, return_inverse=True)
+                    pair = inv.astype(np.int64) * vocab + nxt
+                    upair, cnt = np.unique(pair, return_counts=True)
+                    acc[k].add(ukeys[upair // vocab], upair % vocab, cnt)
+
+    buffer: pd.DataFrame | None = None
+    closed: set[str] = set()
+    parquet = pq.ParquetFile(seq_path)
+    for record_batch in parquet.iter_batches(batch_size=batch_rows):
+        chunk = record_batch.to_pandas()
+        buffer = chunk if buffer is None else pd.concat([buffer, chunk], ignore_index=True)
+        user_arr = buffer["user"].to_numpy()
+        n_blocks = 1 + int((user_arr[1:] != user_arr[:-1]).sum())
+        if n_blocks != len(pd.unique(user_arr)):
+            raise ValueError(f"{seq_path} is not user-contiguous; rebuild sequences first")
+        done_mask = user_arr != user_arr[-1]
+        if done_mask.any():
+            done_users = set(pd.unique(user_arr[done_mask]))
+            if not closed.isdisjoint(done_users):
+                raise ValueError(f"{seq_path} is not user-contiguous; rebuild sequences first")
+            process(buffer.loc[done_mask])
+            closed |= done_users
+            buffer = buffer.loc[~done_mask]
+    if buffer is not None and not buffer.empty:
+        if not closed.isdisjoint(set(pd.unique(buffer["user"].to_numpy()))):
+            raise ValueError(f"{seq_path} is not user-contiguous; rebuild sequences first")
+        process(buffer)
+
+    nz = np.nonzero(gcounts)[0]
+    rank_order = np.lexsort((nz, -gcounts[nz]))
+    global_rank = tuple(int(c) for c in nz[rank_order])
+    return global_rank, {k: acc[k].finalize() for k in orders}, sorted(users)
+
+
+def evaluate_hourly_sharded(
+    seq_path: Path,
+    cells: pd.DataFrame,
+    n_shards: int,
+    test_frac: float = 0.2,
+    batch_rows: int = 1_000_000,
+) -> pd.DataFrame:
+    """Memory-bounded, bit-exact ``evaluate_hourly`` over a seq_hourly parquet.
+
+    Pass 1 streams the panel once to accumulate pooled collective state
+    (global frequency ranking + collective Markov transitions, orders 1-3).
+    Pass 2 evaluates user shards: per-user predictors (freq/time/individual
+    Markov, global-frequency backoff) are per-user quantities, so fitting
+    them on the shard's own rows is exact; collective predictors use the
+    pass-1 pooled tables. Output equals the monolithic ``evaluate_hourly``.
+    """
+    import pyarrow.dataset as pads
+
+    vocab = int(cells["cell_idx"].max()) + 1
+    global_rank, tables, users = _stream_pooled_state(seq_path, test_frac, vocab, batch_rows)
+    frames: list[pd.DataFrame] = []
+    dataset = pads.dataset(seq_path)
+    user_arr = np.asarray(users, dtype=object)
+    for shard in np.array_split(user_arr, n_shards):
+        if len(shard) == 0:
+            continue
+        seq = dataset.to_table(filter=pads.field("user").isin(shard.tolist())).to_pandas()
+        train, test = temporal_split(seq, test_frac)
+        predictors = _fit_hourly_predictors(train)
+        user_rank, _ = _frequency_ranks(train)
+        for pred in predictors.values():
+            if isinstance(pred, MarkovPredictor | FrequencyPredictor | TimeConditionedPredictor):
+                pred._global_rank = global_rank
+        for k in (1, 2, 3):
+            predictors[f"markov{k}_col"] = PooledMarkovPredictor(
+                order=k, vocab=vocab, table=tables[k], user_rank=user_rank, global_rank=global_rank
+            )
+        frames.append(_eval_hourly_predictors(train, test, cells, predictors))
+        del seq, train, test, predictors
+    if not frames:
+        return pd.DataFrame(columns=_RESULT_COLUMNS)
+    return pd.concat(frames, ignore_index=True)
 
 
 def topk_accuracy(
@@ -317,7 +544,9 @@ def _result_row(
     }
 
 
-_AnyPredictor = FrequencyPredictor | TimeConditionedPredictor | MarkovPredictor
+_AnyPredictor = (
+    FrequencyPredictor | TimeConditionedPredictor | MarkovPredictor | PooledMarkovPredictor
+)
 
 
 def _predict_ranked(
@@ -326,24 +555,13 @@ def _predict_ranked(
     """Dispatch a ranked top-3 prediction for one test row."""
     if isinstance(pred, TimeConditionedPredictor):
         return pred.predict_ranked(user, hour, k=3)
-    if isinstance(pred, MarkovPredictor):
+    if isinstance(pred, MarkovPredictor | PooledMarkovPredictor):
         return pred.predict_ranked(tuple(history[-pred.order :]), user, k=3)
     return pred.predict_ranked(user, k=3)
 
 
-def evaluate_hourly(
-    seq: pd.DataFrame, cells: pd.DataFrame, test_frac: float = 0.2
-) -> pd.DataFrame:
-    """Next-hour cell prediction on the per-user chronological test split.
-
-    For each test hour whose target cell is known, predictors rank candidates
-    from the user's known-cell history. The context spans the train/test
-    boundary: the last known train cells warm-start the Markov chains, and
-    known test cells are appended to the history as evaluation proceeds.
-    Targets equal to UNKNOWN are excluded from scoring and from the history.
-    Returns a long frame: predictor, user, n_eval, top1, top3, dist_km.
-    """
-    train, test = temporal_split(seq, test_frac)
+def _fit_hourly_predictors(train: pd.DataFrame) -> dict[str, _AnyPredictor]:
+    """Fit the 8 hourly predictors on a per-user chronological train split."""
     predictors: dict[str, _AnyPredictor] = {
         "freq": FrequencyPredictor().fit(train),
         "time": TimeConditionedPredictor().fit(train),
@@ -351,6 +569,16 @@ def evaluate_hourly(
     for k in (1, 2, 3):
         predictors[f"markov{k}"] = MarkovPredictor(order=k, individual=True).fit(train)
         predictors[f"markov{k}_col"] = MarkovPredictor(order=k, individual=False).fit(train)
+    return predictors
+
+
+def _eval_hourly_predictors(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    cells: pd.DataFrame,
+    predictors: dict[str, _AnyPredictor],
+) -> pd.DataFrame:
+    """Score fitted predictors over the per-user test split (long result frame)."""
     train_seqs = _user_sequences(train)
     rows: list[dict] = []
     for user, g in test.groupby("user", sort=True):
@@ -372,6 +600,22 @@ def evaluate_hourly(
         for name, rk in ranked.items():
             rows.append(_result_row(name, user, y_arr, np.asarray(rk), cells))
     return pd.DataFrame(rows, columns=_RESULT_COLUMNS)
+
+
+def evaluate_hourly(
+    seq: pd.DataFrame, cells: pd.DataFrame, test_frac: float = 0.2
+) -> pd.DataFrame:
+    """Next-hour cell prediction on the per-user chronological test split.
+
+    For each test hour whose target cell is known, predictors rank candidates
+    from the user's known-cell history. The context spans the train/test
+    boundary: the last known train cells warm-start the Markov chains, and
+    known test cells are appended to the history as evaluation proceeds.
+    Targets equal to UNKNOWN are excluded from scoring and from the history.
+    Returns a long frame: predictor, user, n_eval, top1, top3, dist_km.
+    """
+    train, test = temporal_split(seq, test_frac)
+    return _eval_hourly_predictors(train, test, cells, _fit_hourly_predictors(train))
 
 
 def evaluate_trip_destination(
@@ -425,15 +669,29 @@ def evaluate_trip_destination(
     return pd.DataFrame(rows, columns=_RESULT_COLUMNS)
 
 
-def run_baselines() -> None:
-    """Read the processed parquets, evaluate all baselines, save + print summary."""
-    seq = pd.read_parquet(config.PROCESSED / "seq_hourly.parquet")
-    cells = pd.read_parquet(config.PROCESSED / "cells_r8.parquet")
-    trips = pd.read_parquet(config.PROCESSED / "trips.parquet")
-    hourly = evaluate_hourly(seq, cells)
+def run_baselines(processed_dir: Path | None = None, shards: int = 1) -> None:
+    """Read the processed parquets, evaluate all baselines, save + print summary.
+
+    ``shards > 1`` switches the hourly evaluation to the memory-bounded
+    streaming/sharded path (bit-exact with the monolithic computation);
+    the trip-destination evaluation always uses the monolith path.
+    """
+    pdir = processed_dir or config.PROCESSED
+    cells = pd.read_parquet(pdir / "cells_r8.parquet")
+    trips_path = pdir / "trips.parquet"
+    trips = pd.read_parquet(trips_path) if trips_path.exists() else pd.DataFrame()
+    if shards > 1:
+        print(f"sharded hourly baselines: {shards} user shards (streaming pass + shard eval)")
+        hourly = evaluate_hourly_sharded(pdir / "seq_hourly.parquet", cells, shards)
+    else:
+        seq = pd.read_parquet(pdir / "seq_hourly.parquet")
+        hourly = evaluate_hourly(seq, cells)
+    hourly.to_parquet(pdir / "baseline_hourly_results.parquet", index=False)
+    if trips.empty:
+        print("no trips (grid dataset) -> skipping trip-destination baselines")
+        return
     trip_res = evaluate_trip_destination(trips, cells)
-    hourly.to_parquet(config.PROCESSED / "baseline_hourly_results.parquet", index=False)
-    trip_res.to_parquet(config.PROCESSED / "baseline_trip_results.parquet", index=False)
+    trip_res.to_parquet(pdir / "baseline_trip_results.parquet", index=False)
     print("=== hourly next-cell baselines (per-user means) ===")
     print(
         hourly.groupby("predictor")[["n_eval", "top1", "top3", "dist_km"]]

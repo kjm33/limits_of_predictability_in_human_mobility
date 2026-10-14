@@ -6,7 +6,13 @@ import pandas as pd
 import pytest
 
 from mobility import config
-from mobility.sequences import cell_vocab, encode_sequences, hourly_sequences, user_q
+from mobility.sequences import (
+    build_sequences,
+    cell_vocab,
+    encode_sequences,
+    hourly_sequences,
+    user_q,
+)
 
 A = h3.latlng_to_cell(39.9042, 116.4074, 8)
 B = sorted(set(h3.grid_disk(A, 1)) - {A})[0]
@@ -127,3 +133,27 @@ def test_res_parameter_changes_cells(points):
     assert all(h3.get_resolution(c) == 8 for c in hourly8["h3"].dropna())
     hourly9 = hourly_sequences(points, res=9)
     assert all(h3.get_resolution(c) == 9 for c in hourly9["h3"].dropna())
+
+
+def test_min_points_per_user_filters_before_panel(points, tmp_path, capsys):
+    # user 00 has 10 points, user 01 has 2 -> threshold 3 keeps only 00
+    points_path = tmp_path / "points.parquet"
+    points.to_parquet(points_path, index=False)
+    build_sequences(points_path, processed_dir=tmp_path, min_points_per_user=3)
+
+    out = capsys.readouterr().out
+    assert "keeping 1 of 2 users" in out
+    seq = pd.read_parquet(tmp_path / "seq_hourly.parquet")
+    assert set(seq["user"]) == {"00"}
+    q = pd.read_parquet(tmp_path / "seq_q.parquet")
+    assert set(q["user"]) == {"00"}
+    vocab = pd.read_parquet(tmp_path / "cells_r8.parquet")
+    assert not vocab.empty  # vocabulary built from surviving user only
+
+
+def test_min_points_none_keeps_all_users(points, tmp_path):
+    points_path = tmp_path / "points.parquet"
+    points.to_parquet(points_path, index=False)
+    build_sequences(points_path, processed_dir=tmp_path)
+    seq = pd.read_parquet(tmp_path / "seq_hourly.parquet")
+    assert set(seq["user"]) == {"00", "01"}

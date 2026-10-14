@@ -130,7 +130,14 @@ def analyze_all(seq_path: str | Path | None = None) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-if __name__ == "__main__":
-    table = analyze_all()
-    table.to_parquet(config.PROCESSED / "entropy.parquet", index=False)
+def run_entropy(processed_dir: Path | None = None) -> pd.DataFrame:
+    """analyze_all on a dataset's seq_hourly.parquet -> entropy.parquet."""
+    pdir = processed_dir or config.PROCESSED
+    table = analyze_all(pdir / "seq_hourly.parquet")
+    table.to_parquet(pdir / "entropy.parquet", index=False)
     print(table.describe().to_string())
+    return table
+
+
+if __name__ == "__main__":
+    run_entropy()

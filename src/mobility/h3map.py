@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
 from . import config
@@ -68,15 +70,14 @@ def select_cohort(
     return stats[mask].reset_index(drop=True)
 
 
-def run_coverage() -> pd.DataFrame:
-    stops = pd.read_parquet(config.PROCESSED / "stops.parquet")
-    points = pd.read_parquet(
-        config.PROCESSED / "points.parquet", columns=["user", "ts"]
-    )
+def run_coverage(processed_dir: Path | None = None) -> pd.DataFrame:
+    pdir = processed_dir or config.PROCESSED
+    stops = pd.read_parquet(pdir / "stops.parquet")
+    points = pd.read_parquet(pdir / "points.parquet", columns=["user", "ts"])
     stats = coverage_stats(stops, points)
-    stats.to_parquet(config.PROCESSED / "coverage_stats.parquet", index=False)
+    stats.to_parquet(pdir / "coverage_stats.parquet", index=False)
     cohort = select_cohort(stats)
-    cohort[["user"]].to_parquet(config.PROCESSED / "cohort.parquet", index=False)
+    cohort[["user"]].to_parquet(pdir / "cohort.parquet", index=False)
     print(f"users: {len(stats)} cohort: {len(cohort)}")
     return stats
 
