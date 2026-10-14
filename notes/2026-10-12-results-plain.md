@@ -1,7 +1,7 @@
 # Results in Plain Language — 2026-10-12
 
 A no-jargon summary of what this project did, what worked, and what didn't.
-(Technical companion: `research-2026-10-12.md`; figures: `reports/`.)
+(Technical companion: `2026-10-12-research.md`; figures: `reports/`.)
 
 ## What we did
 

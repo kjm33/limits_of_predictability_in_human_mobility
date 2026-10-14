@@ -3,7 +3,7 @@
 Created: 2026-10-12
 Dataset: GeoLife (Microsoft) — 182 users, Beijing, 2007–2012, 1–5 s GPS
 Stack: Python 3.12 (uv), h3, pandas/pyarrow, networkx, scikit-learn, PyTorch, OSRM (docker)
-Research note: `notes/research-2026-10-12.md`
+Research note: `notes/2026-10-12-research.md`
 
 ## Phase 0 — Project setup
 - [ ] 0.1 Init uv project (`pyproject.toml`), `src/mobility/` package layout, `.gitignore`, `README.md`

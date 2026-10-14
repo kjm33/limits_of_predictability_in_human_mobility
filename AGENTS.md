@@ -12,15 +12,24 @@ Guidance for coding agents working in this repo.
 ## Commands
 
 ```bash
-uv run pytest -q                      # full test suite (93 tests) — MUST pass
+uv run pytest -q                      # full test suite — MUST pass
 uv run ruff check src tests scripts   # line length 100 — MUST pass
 uv run python -m mobility.<module>    # run any pipeline stage (see ordering below)
+uv run python scripts/run_stage.py <stage> --dataset <key>   # any stage on any dataset
 uv run jupyter nbconvert --to notebook --execute --inplace notebooks/XX_*.ipynb
 ```
 
 Module execution order (each reads predecessors' parquet from `data/processed/`):
 `ingest` → `sequences` → `entropy` / `baselines` / `routines` / `graphs` / `deep`
 (any order after `sequences`) → `suggest` (CLI demo).
+
+Multi-dataset layout: besides GeoLife (`data/processed/` flat), the processed
+tree per dataset lives in `data/processed/<dataset>/` for keys `yjmob1`,
+`yjmob2` (via `python -m mobility.yjmob`), `fsq_nyc`, `fsq_tky`, `gowalla`,
+`brightkite` (via `python -m mobility.checkins`). Raw files land in
+`data/raw/{yjmob100k,foursquare,gowalla,brightkite}/` through
+`scripts/fetch_{yjmob100k,foursquare,snap_checkins}.py`. Every stage function
+takes `processed_dir=`; `scripts/run_stage.py <stage> --dataset <key>` wires it.
 
 ## Hard rules
 
@@ -65,13 +74,15 @@ Module execution order (each reads predecessors' parquet from `data/processed/`)
 
 | Module | Responsibility |
 |---|---|
-| `config` | paths + constants (stay params, H3 res, cohort thresholds) |
+| `config` | paths + constants (stay params, H3 res, cohort thresholds, dataset dirs) |
 | `ingest` / `stay` / `h3map` | PLT parse → points → stays/trips (250 m / 10 min, 20-min merge gap) |
 | `sequences` / `entropy` | hourly most-frequent-cell sequences; S_rand/S_unc/S_LZ + Fano Π |
 | `baselines` | freq / time-conditioned / Markov (order 1-3, individual+collective) predictors + metrics |
 | `routines` | DBSCAN places, routine cards (weekday × 15-min bucket), trigger rule |
 | `graphs` | per-user/global transition graphs, analytics, random-walk predictor |
 | `deep` | DeepMove-style RNN, causal Transformer, GraphSeq (PPR embeddings) — torch CPU |
+| `yjmob` | YJMob100K grid adapter: writes seq_hourly/cells_r8/seq_q/cohort/poi directly (no raw GPS) |
+| `checkins` | Foursquare TSMC2014 + Gowalla/Brightkite check-in parse → points/checkins_meta |
 | `routing` / `suggest` | OSRM client + folium maps; `python -m mobility.suggest` CLI |
 
 ## Definition of done

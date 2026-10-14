@@ -4,8 +4,8 @@ Reproduction of Song et al. (Science, 2010) predictability analysis on the GeoLi
 dataset (182 users, Beijing, 2007–2012), plus a pipeline from raw GPS to
 **proactive route suggestion** ("every Thursday 15:15 the user drives to music school").
 
-Method background: `notes/research-2026-10-12.md`.
-Plain-language results summary: `notes/results-plain-2026-10-12.md`.
+Method background: `notes/2026-10-12-research.md`.
+Plain-language results summary: `notes/2026-10-12-results-plain.md`.
 
 ## Pipeline
 
