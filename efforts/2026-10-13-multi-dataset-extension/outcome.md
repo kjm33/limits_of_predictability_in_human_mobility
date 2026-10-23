@@ -2,8 +2,8 @@
 
 What happened when we stopped relying on GeoLife alone and wired in three more
 human-mobility datasets. Plain-language companion to
-`2026-10-12-results-plain.md`; the motivation research is in
-`2026-10-13-research-datasets.md`.
+`../2026-10-12-geolife-pipeline/outcome.md`; the motivation research is in
+`research.md` (this directory).
 
 ## Why we did this
 
