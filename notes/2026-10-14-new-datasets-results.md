@@ -23,8 +23,8 @@ different cities and sensing regimes.
 | YJMob100K (ds2) | Same regime, 25k users, incl. 15-day emergency period | 25,000 | 45,000,000 h | 0.576 | 24,997 |
 | Foursquare NYC | Venue check-ins w/ categories, ~10 months | 1,083 | 6,836,751 h | 0.971 | 62 |
 | Foursquare Tokyo | same | 2,293 | 15,091,683 h | 0.972 | 494 |
-| Gowalla | Location check-ins + friendship graph, ~20 months | 107,069 | 231,330,049 h | 0.886 | (pending) |
-| Brightkite (>=100 check-ins) | Location check-ins + friendship graph | (pending) | (pending) | (pending) | (pending) |
+| Gowalla | Location check-ins + friendship graph, ~20 months | 107,069 | 231,330,049 h | 0.886 | 1,954 |
+| Brightkite (>=100 check-ins) | Location check-ins + friendship graph | 50,686 | 92,212,677 h | 0.978 | 2,757 |
 
 Notes: q = fraction of a user's enrolled hours with unknown location (lower =
 denser). Gowalla kept unfiltered (documented mixed policy); Brightkite
@@ -48,11 +48,31 @@ location data*, not of our sample size.
 
 Check-in datasets sit lower still: Foursquare NYC Π = 0.576, Tokyo 0.593.
 Venue check-ins are burstier and more voluntary than app pings — people
-check in at restaurants, not at home.
+check in at restaurants, not at home. Gowalla lands lower again:
+Π median 0.437 (mean 0.435) over all 107k users — check-in histories are
+short (median 11 distinct cells) and repetitive. Brightkite's >=100-check-in
+filter selects heavier users (median 41 distinct cells) and lands higher:
+Π median 0.654 (mean 0.677), with q = 0.978 — the panel is sparse but the
+*observed* histories are long. The ceiling tracks the *sensing regime and
+history length*, not the user count: dense app pings ~0.63, long voluntary
+check-in histories ~0.65, short ones 0.44-0.59.
 
 ## Baselines: the winner flips by sensing regime
 
-(TODO: yjmob1/yjmob2/gowalla/brightkite tables from queue v2.)
+YJMob100K dataset 2 (25k users, q=0.576, 24,427 evaluated, mean 142 test
+hours/user) restores the GeoLife ordering: **individual markov1 wins**
+(top-1 0.216, top-3 0.388) over freq (0.206) and markov3_col (0.206);
+time-conditioned is worst (0.158). Distance errors 4.6–9.6 km on the
+synthetic 500 m grid coordinates. So on *dense* panels individual order-1
+context helps; on sparse voluntary check-ins it doesn't.
+
+YJMob100K dataset1 confirms at 4× scale (98,247 evaluated users, mean 146
+test hours/user): **markov1 wins again, more decisively** — top-1 0.273,
+top-3 0.469, ahead of markov2 (0.254), freq (0.250), markov3 (0.243);
+markov1_col is last but has the smallest distance error (4.0 km vs ~5-7 km
+for the individual models). Business-as-usual mobility (dataset1) is more
+predictable than the dataset2 period (0.273 vs 0.216 top-1), consistent
+with dataset2 spanning calmer weeks.
 
 On GeoLife, collective Markov (order 3) won hourly next-cell prediction
 (0.231 top-1). On Foursquare check-ins the ranking inverts: simple
@@ -62,15 +82,47 @@ sequences are short and repetitive; transition context adds nothing —
 the opposite of dense GPS trajectories. Distance errors are ~5 km (vs
 110 km on GeoLife's Beijing-scale cells) — urban-scale, useful.
 
+Gowalla (97,779 evaluated users, but mean only 8 test hours/user — short
+histories) repeats the check-in pattern at global scale: **time 0.180 /
+freq 0.176** on top, every individual Markov below 0.16. Distance errors
+are 230–375 km — the largest of any dataset, because Gowalla is worldwide:
+wrong guesses land on other continents, not other neighborhoods. A
+predictor's distance error is a property of the *geography of the vocab*,
+not just its accuracy.
+
+Brightkite (>=100 check-ins, 8,173 evaluated users, mean 39 test hours/user)
+flips back: **markov1_col wins (top-1 0.349, top-3 0.430)**, individual
+markov1 close behind (0.341/0.447), freq (0.278) and time (0.264) relegated.
+The DeepMove-style filter selected heavy users with long, structured
+histories — exactly where transition context pays. So the winner isn't
+"dense vs sparse" but "long structured histories vs short bursty ones":
+yjmob markov1, fsq/gowalla-unfiltered freq/time, brightkite-filtered markov.
+
 ## Deep models: still data-limited, now with a cleaner verdict
 
-(TODO: gowalla/brightkite/yjmob2 deep results.)
+On Gowalla (1 epoch, cohort 1,954): transformer top-1 0.105, DeepMove RNN
+0.096 — both roughly *half* the counting baselines (freq 0.176, time 0.180).
+The GeoLife verdict ("deep barely beats counting") degrades further on
+check-ins: it doesn't beat counting at all, at any scale we tested.
+Distance errors are meaningless-scale (1,700-2,300 km) for the same
+worldwide-vocab reason as the baselines.
+
+Brightkite (1 epoch, cohort 2,757): transformer top-1 0.231, RNN 0.204 —
+closer to the baselines than Gowalla got, but still well under the markov
+winner (0.349). One epoch on ~2.7k users is not a fair fight; it is however
+the *same regime* under which the baselines were evaluated.
 
 On Foursquare, 1-epoch transformer: NYC 0.198, TKY 0.237 — both *below* the
-frequency baseline. GraphSeq collapsed again (0.005 / 0.04). With GeoLife the
-story was "deep barely beats counting"; on check-ins it's "deep doesn't beat
-counting at all." YJMob100K (the only dataset with enough windows to matter)
-is where this question actually gets settled — see queue results.
+frequency baseline. GraphSeq collapsed again (0.005 / 0.04).
+
+YJMob100K dataset2 was the settling ground — 24,997 cohort users, by far
+the most training windows in the project (~3.7M eval hours). 1-epoch CPU
+result: transformer top-1 0.125, RNN 0.097 vs markov1's 0.216. Even at
+25k-user scale the deep models land at roughly *half* the order-1 Markov
+chain. The verdict across all six datasets: at the training budgets we can
+afford (CPU, 1-3 epochs), deep never beats counting — the honest framing
+is not "deep fails" but "under CPU-scale training, sequence models don't
+pay off on hourly next-cell prediction."
 
 ## Infrastructure: what it took
 

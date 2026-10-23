@@ -6,6 +6,32 @@ dataset (182 users, Beijing, 2007–2012), plus a pipeline from raw GPS to
 
 Method background: `notes/2026-10-12-research.md`.
 Plain-language results summary: `notes/2026-10-12-results-plain.md`.
+Multi-dataset extension (YJMob100K, Foursquare NYC/Tokyo, Gowalla,
+Brightkite): `notes/2026-10-13-research-datasets.md` and
+`notes/2026-10-14-new-datasets-results.md`.
+
+## Datasets
+
+GeoLife is the primary dataset (above). Five more are integrated through the
+same downstream stack (`sequences` → `entropy`/`baselines`/`deep`), each with
+its own raw layout and ingest adapter:
+
+| Key | Dataset | Scale | Ingest |
+|---|---|---|---|
+| `yjmob1` / `yjmob2` | YJMob100K grid (100k/25k users, 500 m grid, 30-min slots) | 180M / 45M hourly cells | `python -m mobility.yjmob` |
+| `fsq_nyc` / `fsq_tky` | Foursquare TSMC2014 check-ins | 225k / 573k points | `python -m mobility.checkins` |
+| `gowalla` / `brightkite` | SNAP check-ins (+ friendship graphs) | 6.4M / 4.5M points | `python -m mobility.checkins` |
+
+```bash
+uv run python scripts/fetch_yjmob100k.py        # or fetch_foursquare / fetch_snap_checkins
+uv run python -m mobility.yjmob --dataset yjmob1
+uv run python -m mobility.checkins --dataset fsq_nyc
+uv run python scripts/run_stage.py entropy --dataset yjmob1   # any stage, any dataset
+uv run python scripts/run_stage.py baselines --dataset yjmob1 --shards 8  # 100k-user panels
+```
+
+YJMob100K is pre-discretized (no raw GPS), so routing/suggest maps don't
+apply there; everything cell-index-based works unchanged.
 
 ## Pipeline
 
@@ -28,7 +54,7 @@ uv run python -m mobility.ingest           # PLT -> points/stops/trips/cohort (~
 for m in sequences entropy baselines routines graphs deep; do
   uv run python -m mobility.$m
 done
-uv run pytest                              # 93 unit tests
+uv run pytest                              # 114 unit tests
 uv run ruff check src tests
 ```
 
@@ -76,13 +102,20 @@ Our Π is far below the paper's 93%: GeoLife's whole-enrollment hourly grid is
 much sparser (mean q ≈ 0.84) than the paper's dense call-inferred locations —
 notebook 02 quantifies this honestly rather than chasing the headline.
 
+The sparsity excuse is now closed off: on YJMob100K (100k users, 500 m grid,
+q = 0.594 — far denser than GeoLife's 0.905) the Fano Π distribution lands at
+mean 0.633 / median 0.639, statistically indistinguishable from GeoLife's
+cohort 0.64. Π ≈ 0.63–0.64 appears to be a property of *this class of hourly
+next-cell prediction*, not of dataset density. Full cross-dataset tables:
+`notes/2026-10-14-new-datasets-results.md`.
+
 ## Repo layout
 
 ```
 src/mobility/   config, ingest, stay, h3map, sequences, entropy, baselines,
-                routines, graphs, deep, routing, suggest
-tests/          93 tests (synthetic data; no network except mocked OSRM)
+                routines, graphs, deep, yjmob, checkins, routing, suggest
+tests/          114 tests (synthetic data; no network except mocked OSRM)
 notebooks/      01-06, executed with embedded outputs
 reports/        figures (16 png), route maps, research notes
-data/           raw/ (GeoLife) + processed/ (parquet artifacts)  [gitignored]
+data/           raw/ + processed/ (flat = GeoLife, per-dataset subdirs)  [gitignored]
 ```
