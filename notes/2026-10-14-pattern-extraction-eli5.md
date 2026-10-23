@@ -1,6 +1,6 @@
 # How User Patterns Were Extracted — ELI5 Walkthrough (2026-10-14)
 
-A plain-language, step-by-step companion to `2026-10-12-results-plain.md`, grounded in
+A plain-language, step-by-step companion to `../efforts/2026-10-12-geolife-pipeline/outcome.md`, grounded in
 the actual source code. Covers the full extraction funnel, then deep-dives into the six
 things most worth understanding: the compression (LZ) entropy trick, Fano's inequality,
 15-minute buckets, routine-card matching, Markov backoff, and where the routine

@@ -5,10 +5,10 @@ dataset (182 users, Beijing, 2007–2012), plus a pipeline from raw GPS to
 **proactive route suggestion** ("every Thursday 15:15 the user drives to music school").
 
 Method background: `notes/2026-10-12-research.md`.
-Plain-language results summary: `notes/2026-10-12-results-plain.md`.
+Plain-language results summary: `efforts/2026-10-12-geolife-pipeline/outcome.md`.
 Multi-dataset extension (YJMob100K, Foursquare NYC/Tokyo, Gowalla,
-Brightkite): `notes/2026-10-13-research-datasets.md` and
-`notes/2026-10-14-new-datasets-results.md`.
+Brightkite): `efforts/2026-10-13-multi-dataset-extension/research.md` and
+`efforts/2026-10-13-multi-dataset-extension/outcome.md`.
 
 ## Datasets
 
@@ -107,7 +107,7 @@ q = 0.594 — far denser than GeoLife's 0.905) the Fano Π distribution lands at
 mean 0.633 / median 0.639, statistically indistinguishable from GeoLife's
 cohort 0.64. Π ≈ 0.63–0.64 appears to be a property of *this class of hourly
 next-cell prediction*, not of dataset density. Full cross-dataset tables:
-`notes/2026-10-14-new-datasets-results.md`.
+`efforts/2026-10-13-multi-dataset-extension/outcome.md`.
 
 ## Repo layout
 
@@ -116,6 +116,8 @@ src/mobility/   config, ingest, stay, h3map, sequences, entropy, baselines,
                 routines, graphs, deep, yjmob, checkins, routing, suggest
 tests/          114 tests (synthetic data; no network except mocked OSRM)
 notebooks/      01-06, executed with embedded outputs
-reports/        figures (16 png), route maps, research notes
+reports/        figures (16 png), route maps
+efforts/        work history: one dir per effort (spec.md + tasks.md + outcome.md)
+STATE.md        where we are now · BACKLOG.md not-yet-done · efforts/README.md index
 data/           raw/ + processed/ (flat = GeoLife, per-dataset subdirs)  [gitignored]
 ```

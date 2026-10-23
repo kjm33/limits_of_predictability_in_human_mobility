@@ -4,7 +4,7 @@ A dedicated plain-language walkthrough of the Fano predictability ceiling used i
 project (`src/mobility/entropy.py`): where the formula comes from, how it is computed
 from raw location sequences step by step (all numbers hand-checked), sanity checks,
 worked examples, and its concrete practical impact on the project. Companion to
-`2026-10-14-pattern-extraction-eli5.md` and `2026-10-12-results-plain.md`.
+`2026-10-14-pattern-extraction-eli5.md` and `../efforts/2026-10-12-geolife-pipeline/outcome.md`.
 
 ---
 
