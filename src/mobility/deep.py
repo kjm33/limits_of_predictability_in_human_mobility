@@ -45,6 +45,7 @@ HOURS_PER_WEEK = 168
 CONTEXT_LEN = 24
 MAX_TRAIN_WINDOWS = 300_000
 EVAL_BATCH = 4096
+MAX_GRAPH_VOCAB = 40_000  # dense PPR transition matrix is vocab^2 * 8 bytes (40k -> ~12.8 GB)
 _RESULT_COLUMNS = ["model", "user", "n_eval", "top1", "top3", "dist_km"]
 DEEP_CACHE_DIR = config.ROOT / "data" / "cache" / "deep"
 
@@ -372,9 +373,11 @@ def run_deep(epochs: int = 3, processed_dir: Path | None = None) -> None:
     cache_dir = pdir / "cache" / "deep"
     seq = pd.read_parquet(pdir / "seq_hourly.parquet")
     cells = pd.read_parquet(pdir / "cells_r8.parquet")
-    trips = pd.read_parquet(pdir / "trips.parquet")
+    trips_path = pdir / "trips.parquet"
+    trips = pd.read_parquet(trips_path) if trips_path.exists() else pd.DataFrame()
     cohort = pd.read_parquet(pdir / "cohort.parquet")
-    baselines = pd.read_parquet(pdir / "baseline_hourly_results.parquet")
+    baseline_path = pdir / "baseline_hourly_results.parquet"
+    baselines = pd.read_parquet(baseline_path) if baseline_path.exists() else pd.DataFrame()
 
     data = build_dataset(seq, cells, [str(u) for u in cohort["user"]], context_len=CONTEXT_LEN)
     n_train = int(data["split"].sum())
@@ -388,7 +391,13 @@ def run_deep(epochs: int = 3, processed_dir: Path | None = None) -> None:
         "deepmove_rnn": DeepMoveRNN(int(data["vocab"])),
         "temporal_transformer": TemporalTransformer(int(data["vocab"])),
     }
-    if len(trips):
+    if len(trips) and len(cells) > MAX_GRAPH_VOCAB:
+        print(
+            f"vocab {len(cells)} > {MAX_GRAPH_VOCAB}; skipping GraphSeq "
+            "(dense PPR transition matrix would need "
+            f"{len(cells) ** 2 * 8 / 1e9:.0f} GB)"
+        )
+    elif len(trips):
         t0 = time.perf_counter()
         node_emb = graph_node_embeddings(trips, cells, d=64, iters=10, teleport=0.1)
         print(f"graph node embeddings: {tuple(node_emb.shape)} in {time.perf_counter() - t0:.1f}s")
@@ -416,15 +425,20 @@ def run_deep(epochs: int = 3, processed_dir: Path | None = None) -> None:
     results = pd.DataFrame(rows, columns=_RESULT_COLUMNS)
     results.to_parquet(pdir / "deep_results.parquet", index=False)
 
-    combined = pd.concat(
-        [
-            baselines.rename(columns={"predictor": "model"})[["model", "top1", "top3", "dist_km"]],
-            results[["model", "top1", "top3", "dist_km"]],
-        ]
-    )
-    summary = combined.groupby("model")[["top1", "top3", "dist_km"]].mean().round(4)
-    print("\n=== hourly next-cell: baselines vs deep (per-user means) ===")
-    print(summary.to_string())
+    if len(baselines):
+        combined = pd.concat(
+            [
+                baselines.rename(columns={"predictor": "model"})[
+                    ["model", "top1", "top3", "dist_km"]
+                ],
+                results[["model", "top1", "top3", "dist_km"]],
+            ]
+        )
+        summary = combined.groupby("model")[["top1", "top3", "dist_km"]].mean().round(4)
+        print("\n=== hourly next-cell: baselines vs deep (per-user means) ===")
+        print(summary.to_string())
+    else:
+        print("\n(no baseline_hourly_results.parquet; deep-only summary above)")
     print(f"\ntotal: {time.perf_counter() - t_start:.1f}s")
     print(f"results -> {pdir / 'deep_results.parquet'}")
     print(f"model state_dicts -> {cache_dir}/<model>.pt")

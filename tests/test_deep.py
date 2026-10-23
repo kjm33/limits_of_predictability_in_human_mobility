@@ -208,3 +208,25 @@ def test_evaluate_deep_sane_and_learns_cycle():
     assert res["top1"] > 0.9  # the cycle is recoverable from the context
     assert np.isfinite(res["dist_km"]) and res["dist_km"] >= 0.0
     assert res["dist_km"] == pytest.approx(0.0, abs=1e-6)  # correct top-1 -> zero distance
+
+
+def test_run_deep_skips_graphseq_on_large_vocab(tmp_path, monkeypatch, capsys):
+    """Vocabs above MAX_GRAPH_VOCAB must skip GraphSeq, not attempt the dense matrix."""
+    from mobility import deep
+
+    monkeypatch.setattr(deep, "MAX_GRAPH_VOCAB", 5)  # fixture vocab is 10
+    for name, frame in [
+        ("seq_hourly.parquet", cycle_seq(n_hours=120)),
+        ("cells_r8.parquet", cells_frame()),
+        ("trips.parquet", cycle_trips()),
+        ("cohort.parquet", pd.DataFrame({"user": USERS})),
+    ]:
+        frame.to_parquet(tmp_path / name, index=False)
+
+    deep.run_deep(epochs=1, processed_dir=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "skipping GraphSeq" in out
+    assert "graph node embeddings" not in out
+    res = pd.read_parquet(tmp_path / "deep_results.parquet")
+    assert set(res["model"]) == {"deepmove_rnn", "temporal_transformer"}
