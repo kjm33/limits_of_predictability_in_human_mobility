@@ -313,7 +313,8 @@ def evaluate_random_walk(
 ) -> pd.DataFrame:
     """Next-r8-cell evaluation of RandomWalkPredictor, mirroring the baselines.
 
-    Per user: fit on the first (1 - test_frac) chronological trips, then score
+    Per user (users present in `trips` only): fit on the first (1 - test_frac)
+    chronological trips, then score
       - rw_trip_dest: predict trip destination cell from origin cell;
       - rw_hourly_seq: on the held-out tail of the hourly sequence, predict the
         next known cell (UNKNOWN rows dropped) from the previous known cell.
@@ -323,10 +324,15 @@ def evaluate_random_walk(
     if trips.empty or seq_hourly.empty:
         return pd.DataFrame(columns=RW_COLUMNS)
     cell_set = None if cells is None else set(cells)
-    users = sorted(set(trips["user"]) | set(seq_hourly["user"]))
+    # Single groupby pass per frame; both iterate users in ascending order, so a
+    # merge-join aligns them without materializing per-user copies of seq_hourly.
+    seq_iter = iter(seq_hourly.groupby("user", sort=True))
+    seq_user, s_u = next(seq_iter, (None, None))
     rows: list[dict] = []
-    for user in users:
-        t_u = trips[trips["user"] == user].sort_values("depart").reset_index(drop=True)
+    for user, t_u in trips.groupby("user", sort=True):
+        while seq_user is not None and seq_user < user:
+            seq_user, s_u = next(seq_iter, (None, None))
+        t_u = t_u.sort_values("depart").reset_index(drop=True)
         k_train = _temporal_split(len(t_u), test_frac)
         pred = RandomWalkPredictor.fit(t_u.iloc[:k_train])
 
@@ -345,9 +351,11 @@ def evaluate_random_walk(
                 }
             )
 
-        s_u = seq_hourly[seq_hourly["user"] == user].sort_values("hour")
-        known = s_u[(s_u["cell_idx"] != config.UNKNOWN) & s_u["h3"].notna()]
-        seq = known["h3"].astype(str).tolist()
+        seq: list[str] = []
+        if seq_user == user:
+            known = s_u.sort_values("hour")
+            known = known[(known["cell_idx"] != config.UNKNOWN) & known["h3"].notna()]
+            seq = known["h3"].astype(str).tolist()
         if len(seq) >= 2:
             k_seq = _temporal_split(len(seq), test_frac)
             pairs = list(zip(seq[k_seq - 1 : -1], seq[k_seq:], strict=True))
@@ -373,6 +381,7 @@ def run_graphs(processed_dir: Path | None = None) -> None:
     stops = pd.read_parquet(pdir / "stops.parquet")
     trips = pd.read_parquet(pdir / "trips.parquet")
     cohort_path = pdir / "cohort.parquet"
+    cohort = None
     if cohort_path.exists():
         cohort = pd.read_parquet(cohort_path)["user"]
         stops = stops[stops["user"].isin(cohort)]
@@ -390,6 +399,8 @@ def run_graphs(processed_dir: Path | None = None) -> None:
     seq_path = pdir / "seq_hourly.parquet"
     if seq_path.exists():
         seq_hourly = pd.read_parquet(seq_path)
+        if cohort is not None:
+            seq_hourly = seq_hourly[seq_hourly["user"].isin(cohort)]
         cells = sorted(set(trips["o_h3_r8"].dropna()) | set(trips["d_h3_r8"].dropna()))
         rw = evaluate_random_walk(trips, seq_hourly, cells=cells)
     else:

@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 from mobility.routines import (
+    attach_venue_context,
     cluster_places,
     evaluate_trigger,
     mine_routines,
@@ -156,3 +157,85 @@ def test_evaluate_trigger_synthetic():
     assert u1["n_eligible"] >= 1
     assert u1["precision"] == 1.0
     assert u1["recall"] == 1.0
+
+
+def _write_checkin_io(tmp_path, points, meta):
+    points.to_parquet(tmp_path / "points.parquet", index=False)
+    meta.to_parquet(tmp_path / "checkins_meta.parquet", index=False)
+
+
+def test_attach_venue_context(tmp_path):
+    ts0 = pd.Timestamp("2023-01-05 15:20:00")
+    ts1 = pd.Timestamp("2023-01-06 09:10:00")
+    ts2 = pd.Timestamp("2023-01-07 21:00:00")
+    lat_u1, lon_u1 = 39.9800, 116.3100
+    lat_u2, lon_u2 = 39.9900, 116.3500
+    points = pd.DataFrame({
+        "user": ["u1", "u1", "u1", "u2", "u2"],
+        "ts": [ts0, ts1, ts2, ts1, ts2],
+        "lat": [lat_u1, lat_u1, 39.5000, lat_u2, lat_u2],
+        "lon": [lon_u1, lon_u1, 116.0000, lon_u2, lon_u2],
+        "alt_m": [np.nan] * 5,
+        "seg_id": [0, 0, 0, 1, 1],
+        "mode": [None] * 5,
+    })
+    meta = pd.DataFrame({
+        "user": ["u1", "u1", "u1", "u2", "u2"],
+        "ts": [ts0, ts1, ts2, ts1, ts2],
+        "venue_id": ["v1", "v1", "v3", "v4", "v5"],
+        "venue_cat_id": ["c1", "c1", "c3", "c4", "c5"],
+        "venue_cat_name": ["Bar", "Bar", "Park", "Cafe", "Bar"],
+    })
+    _write_checkin_io(tmp_path, points, meta)
+    stops_p = pd.DataFrame([
+        {"user": "u1", "h3_r9": h3.latlng_to_cell(lat_u1, lon_u1, 9), "place_id": 0},
+        {"user": "u1", "h3_r9": h3.latlng_to_cell(39.9700, 116.2900, 9), "place_id": 1},
+        {"user": "u2", "h3_r9": h3.latlng_to_cell(lat_u2, lon_u2, 9), "place_id": 0},
+    ])
+    places = pd.DataFrame({
+        "user": ["u1", "u1", "u2"],
+        "place_id": [0, 1, 0],
+        "label": ["home", "", "work"],
+    })
+    out = attach_venue_context(places, stops_p, tmp_path)
+    assert list(out.columns) == [
+        "user", "place_id", "label", "top_venue_cat", "n_venue_checkins",
+    ]
+    # (user, place_id) order preserved; new columns appended at the end
+    assert out[["user", "place_id"]].values.tolist() == [["u1", 0], ["u1", 1], ["u2", 0]]
+    # u1 place 0: Bar x2 at the stop cell -> modal Bar, n=2; the Park check-in
+    # sits outside any stop cell -> contributes nowhere
+    r = out[(out["user"] == "u1") & (out["place_id"] == 0)].iloc[0]
+    assert r["top_venue_cat"] == "Bar" and r["n_venue_checkins"] == 2
+    # unmatched place keeps NA / 0
+    r = out[(out["user"] == "u1") & (out["place_id"] == 1)].iloc[0]
+    assert pd.isna(r["top_venue_cat"]) and r["n_venue_checkins"] == 0
+    # u2 place 0: Cafe x1 + Bar x1 -> tie broken by mode order (Bar < Cafe)
+    r = out[out["user"] == "u2"].iloc[0]
+    assert r["top_venue_cat"] == "Bar" and r["n_venue_checkins"] == 2
+
+
+def test_attach_venue_context_noop_snap_style(tmp_path):
+    # SNAP-style checkins_meta: no venue_cat_name -> columns appended, zeroed
+    ts0 = pd.Timestamp("2023-01-05 15:20:00")
+    points = pd.DataFrame({"user": ["u1"], "ts": [ts0], "lat": [39.98], "lon": [116.31]})
+    meta = pd.DataFrame({"user": ["u1"], "ts": [ts0], "loc_id": ["42"]})
+    _write_checkin_io(tmp_path, points, meta)
+    stops_p = pd.DataFrame([
+        {"user": "u1", "h3_r9": h3.latlng_to_cell(39.98, 116.31, 9), "place_id": 0},
+    ])
+    places = pd.DataFrame({"user": ["u1", "u1"], "place_id": [0, 1], "n_visits": [5, 2]})
+    out = attach_venue_context(places, stops_p, tmp_path)
+    assert len(out) == 2
+    assert list(out.columns) == [
+        "user", "place_id", "n_visits", "top_venue_cat", "n_venue_checkins",
+    ]
+    assert out["top_venue_cat"].isna().all()
+    assert (out["n_venue_checkins"] == 0).all()
+    assert out["n_visits"].tolist() == [5, 2]
+    # neither parquet present -> same no-op
+    empty_dir = tmp_path / "missing"
+    empty_dir.mkdir()
+    out2 = attach_venue_context(places, stops_p, empty_dir)
+    assert list(out2.columns) == list(out.columns)
+    assert out2["top_venue_cat"].isna().all() and (out2["n_venue_checkins"] == 0).all()

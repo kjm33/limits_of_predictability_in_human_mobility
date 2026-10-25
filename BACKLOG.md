@@ -8,4 +8,7 @@ dated checkbox in an active effort's tasks.md). Source links to where the item c
 - [ ] Social+mobility graphs from SNAP friendship edges (Gowalla/Brightkite friendship data downloadable via `fetch_snap_checkins.py`, currently unused) — since 2026-10-23, from [research.md goals](efforts/2026-10-13-multi-dataset-extension/research.md)
 - [ ] Predictability-under-disruption analysis (dataset requirement motivated in research.md, not pursued) — since 2026-10-23, from research.md
 - [ ] DeepMove-benchmark validation of the deep models against published numbers — since 2026-10-23, from research.md
+- [ ] Routine-card thresholds are GeoLife-tuned; check-in datasets starve (fsq_nyc: 11
+  cards) — sensitivity pass over min_support_weeks/min_confidence per sensing regime —
+  since 2026-10-23, from checkin-routines-graphs outcome
 - [ ] Foursquare entropy cohorts are tiny (62 NYC / 494 TKY users, q ≈ 0.97) — strengthen or keep as contrast-only — since 2026-10-23, from outcome.md caveats

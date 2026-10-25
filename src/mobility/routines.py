@@ -110,6 +110,63 @@ def _attach_labels(places: pd.DataFrame, stops: pd.DataFrame) -> pd.DataFrame:
     return places
 
 
+def _modal_or_na(s: pd.Series):
+    """Modal value (ties -> first by mode order); pd.NA when nothing present."""
+    m = s.mode()
+    return m.iloc[0] if len(m) else pd.NA
+
+
+def attach_venue_context(
+    places: pd.DataFrame, stops_p: pd.DataFrame, processed_dir: Path
+) -> pd.DataFrame:
+    """Append top_venue_cat / n_venue_checkins to a places summary.
+
+    Joins checkins_meta to points (row-aligned on user, ts), maps each matched
+    check-in to its H3-r9 cell and inherits the stop cell's place_id; per
+    (user, place_id) the modal venue_cat_name becomes top_venue_cat and the
+    matched row count n_venue_checkins. Places without matched check-ins keep
+    NA / 0. When checkins_meta.parquet or points.parquet is missing, or
+    checkins_meta carries no venue_cat_name (SNAP datasets), the two columns
+    are appended all-NA / all-0 so schemas stay uniform across datasets.
+    """
+    meta_path = processed_dir / "checkins_meta.parquet"
+    points_path = processed_dir / "points.parquet"
+    meta = None
+    if meta_path.exists() and points_path.exists():
+        meta = pd.read_parquet(meta_path)
+        if "venue_cat_name" not in meta.columns:
+            meta = None
+
+    places = places.copy()
+    if meta is None:
+        places["top_venue_cat"] = pd.NA
+        places["n_venue_checkins"] = 0
+        return places
+
+    import h3
+
+    points = pd.read_parquet(points_path, columns=["user", "ts", "lat", "lon"])
+    ck = meta[["user", "ts", "venue_cat_name"]].merge(points, on=["user", "ts"], how="inner")
+    ck["h3_r9"] = [
+        h3.latlng_to_cell(la, lo, config.H3_STOP_RES)
+        for la, lo in zip(ck["lat"], ck["lon"], strict=True)
+    ]
+    cell_place = stops_p[["user", "h3_r9", "place_id"]].drop_duplicates(subset=["user", "h3_r9"])
+    ck = ck.merge(cell_place, on=["user", "h3_r9"], how="inner")
+    agg = (
+        ck.groupby(["user", "place_id"], sort=False)
+        .agg(
+            top_venue_cat=("venue_cat_name", _modal_or_na),
+            n_venue_checkins=("venue_cat_name", "size"),
+        )
+        .reset_index()
+    )
+    places = places.merge(agg, on=["user", "place_id"], how="left")
+    places["top_venue_cat"] = places["top_venue_cat"].fillna(pd.NA)
+    places["n_venue_checkins"] = places["n_venue_checkins"].fillna(0).astype("i8")
+    return places
+
+
 def _nearest_place(places: pd.DataFrame, user: str, lat: float, lon: float) -> int | None:
     g = places[places["user"] == user]
     if g.empty:
@@ -328,6 +385,7 @@ def run_routines(
     stops = pd.read_parquet(pdir / "stops.parquet")
     trips = pd.read_parquet(pdir / "trips.parquet")
     stops_p, places = cluster_places(stops)
+    places = attach_venue_context(places, stops_p, pdir)
     routines = mine_routines(stops_p, places, trips, bucket_min, min_support_weeks, min_confidence)
     eval_df = evaluate_trigger(routines, stops_p, trips, places)
     stops_p.to_parquet(pdir / "places.parquet", index=False)

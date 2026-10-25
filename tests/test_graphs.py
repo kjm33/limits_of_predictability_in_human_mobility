@@ -9,6 +9,7 @@ import pytest
 
 from mobility import config
 from mobility.graphs import (
+    RW_COLUMNS,
     RandomWalkPredictor,
     build_all_graphs,
     build_global_graph,
@@ -271,3 +272,54 @@ def test_evaluate_random_walk_empty():
                                _seq_frame({"u1": [A, B]}))
     assert out.empty
     assert list(out.columns) == ["user", "method", "n_eval", "top1_acc", "top3_acc", "dist_err_km"]
+
+
+def test_evaluate_random_walk_skips_seq_only_users():
+    t0 = pd.Timestamp("2020-01-06 08:00")
+    trips = pd.DataFrame([
+        _trip("u1", A, B, t0),
+        _trip("u1", A, B, t0 + pd.Timedelta(hours=1)),
+        _trip("u2", A, B, t0),
+        _trip("u2", B, A, t0 + pd.Timedelta(hours=1)),
+        _trip("u2", A, B, t0 + pd.Timedelta(hours=2)),
+    ])
+    # seq-only users on both sides of the sort order exercise the merge-join advance
+    seq = _seq_frame({"a0": [A, B], "u2": [A, B, A, B], "u9": [A, B]})
+    df = evaluate_random_walk(trips, seq, test_frac=0.2)
+    assert list(df.columns) == RW_COLUMNS
+    assert set(df["user"]) == {"u1", "u2"}  # seq-only a0 / u9 absent from output
+    assert df.equals(df.sort_values(["user", "method"]).reset_index(drop=True))
+    # trips-only user: rw_trip_dest only, no hourly-seq row
+    assert set(df[df["user"] == "u1"]["method"]) == {"rw_trip_dest"}
+    assert set(df[df["user"] == "u2"]["method"]) == {"rw_trip_dest", "rw_hourly_seq"}
+
+
+def test_evaluate_random_walk_per_user_independent():
+    t0 = pd.Timestamp("2020-01-06 08:00")
+    u1_trips = pd.DataFrame([
+        _trip("u1", A, B, t0),
+        _trip("u1", A, B, t0 + pd.Timedelta(hours=1)),
+        _trip("u1", B, A, t0 + pd.Timedelta(hours=2)),
+        _trip("u1", A, B, t0 + pd.Timedelta(hours=3)),
+    ])
+    u2_trips = pd.DataFrame([
+        _trip("u2", B, C, t0),
+        _trip("u2", B, C, t0 + pd.Timedelta(hours=1)),
+        _trip("u2", C, B, t0 + pd.Timedelta(hours=2)),
+    ])
+    u1_seq = _seq_frame({"u1": [A, B, A, B]})
+    u2_seq = _seq_frame({"u2": [B, C, B, C, B]})
+    # u2 frames concatenated before u1: results must not depend on iteration order
+    both = evaluate_random_walk(
+        pd.concat([u2_trips, u1_trips]), pd.concat([u2_seq, u1_seq]), test_frac=0.2
+    )
+    only_u1 = evaluate_random_walk(u1_trips, u1_seq, test_frac=0.2)
+    only_u2 = evaluate_random_walk(u2_trips, u2_seq, test_frac=0.2)
+
+    def _user_rows(df: pd.DataFrame, user: str) -> pd.DataFrame:
+        return df[df["user"] == user].sort_values("method").reset_index(drop=True)
+
+    pd.testing.assert_frame_equal(_user_rows(both, "u1"), _user_rows(only_u1, "u1"))
+    pd.testing.assert_frame_equal(_user_rows(both, "u2"), _user_rows(only_u2, "u2"))
+    assert set(_user_rows(both, "u1")["method"]) == {"rw_trip_dest", "rw_hourly_seq"}
+    assert set(_user_rows(both, "u2")["method"]) == {"rw_trip_dest", "rw_hourly_seq"}
