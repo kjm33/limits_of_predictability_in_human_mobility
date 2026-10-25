@@ -10,6 +10,37 @@ Multi-dataset extension (YJMob100K, Foursquare NYC/Tokyo, Gowalla,
 Brightkite): `efforts/2026-10-13-multi-dataset-extension/research.md` and
 `efforts/2026-10-13-multi-dataset-extension/outcome.md`.
 
+## Demo dashboard
+
+An interactive, six-page Streamlit dashboard tells the whole story — Song 2010's
+93% vs the 0.44–0.65 ceiling we actually measure, model leaderboards, per-user
+explorer, and a live routine-card → route suggestion demo:
+
+```bash
+./run_dashboard.sh
+# equivalent to: uv run --group demo streamlit run dashboard/app.py
+# extra args pass through, e.g. ./run_dashboard.sh --server.port 8637
+```
+
+Pages:
+
+1. **The Question** — hero comparison, plain-words entropy/Fano explainer,
+   seven dataset cards, city locator map
+2. **Predictability Ceiling** — per-dataset Π_actual distributions/ECDFs,
+   Π-vs-q scatter, Fano-bound compliance, entropy trio
+3. **Model Arena** — leaderboards, "the winner flips by regime", deep vs best
+   baseline, random-walk references, dist-km caveats
+4. **User Explorer** — featured users with Π gauge, observed-cell map,
+   weekday×hour heatmap, places and POI profiles
+5. **Suggest Demo** — the "Monday 15:14" trigger rule with evidence cards and
+   an optional OSRM route (degrades to straight-line offline)
+6. **Method & Data** — pipeline, provenance, cohort rules, limitations,
+   reproduction commands
+
+The dashboard reads only the curated package in `data/processed/dashboard/`
+(~12 MB) — never the big pipeline outputs. The `demo` dependency group
+(`streamlit`, `plotly`) is optional; everything else runs without it.
+
 ## Datasets
 
 GeoLife is the primary dataset (above). Five more are integrated through the
