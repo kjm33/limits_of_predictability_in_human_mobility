@@ -51,10 +51,15 @@ pattern-detection rates, and an interactive weekday×time trigger that fires a
 real routine card for GeoLife user 022.
 
 ```bash
-uv run python scripts/build_demo.py     # parquets → demo/public/data.json (~230 KB)
-cd demo && npm install && npm run dev   # dev server (Node ≥ 20)
-npm run build && npm run preview        # production build (~1.6 MB dist, lazy MapLibre)
+make demo-serve    # one command: install deps → build → serve on your LAN (Ctrl+C to stop)
+make demo-dev      # or: hot-reload dev server, also LAN-accessible
 ```
+
+The site's entire data payload (`demo/public/data.json`, ~230 KB) is **committed
+to the repo**, so a fresh clone runs the demo with Node.js alone — no Python, no
+parquets. Requirements: Node ≥ 20 (`nodejs.org`) and `npm install` (the Makefile
+handles both). To regenerate the data after a pipeline change:
+`make demo-data` (needs the uv environment and the `data/processed/` tree).
 
 Every number on the page is computed by `scripts/build_demo.py` from
 `data/processed/` — nothing hand-typed. Stack: Vite + Svelte 5 + GSAP

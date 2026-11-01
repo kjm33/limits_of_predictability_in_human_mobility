@@ -44,12 +44,12 @@
         <div class="city">{r.city} · {r.country}</div>
         <p class="watch">{r.watch}</p>
         <div class="nums">
-          <div><b>{fmtInt(r.n_users)}</b><label>people</label></div>
-          <div><b>{r.records != null ? fmtM(r.records) : "112M"}</b><label>{r.unit}</label></div>
-          <div><b>{fmtDays(r.span_days)}</b><label>time span</label></div>
+          <div><b>{fmtInt(r.n_users)}</b><span>people</span></div>
+          <div><b>{r.records != null ? fmtM(r.records) : "112M"}</b><span>{r.unit}</span></div>
+          <div><b>{fmtDays(r.span_days)}</b><span>time span</span></div>
           <div>
             <b>{r.median_user_days != null ? `${r.median_user_days} d` : "—"}</b>
-            <label>median days w/ data</label>
+            <span>median days w/ data</span>
           </div>
         </div>
       </div>
@@ -89,6 +89,6 @@
     border-top: 1px solid var(--line); padding-top: 12px; margin-top: 6px;
   }
   .nums b { font-size: 17px; color: var(--accent); display: block; }
-  .nums label { font-size: 11px; color: var(--faint); line-height: 1.3; display: block; }
+  .nums span { font-size: 11px; color: var(--faint); line-height: 1.3; display: block; }
   @media (max-width: 520px) { .nums { grid-template-columns: repeat(2, 1fr); } }
 </style>

@@ -11,10 +11,10 @@
 ## Live numbers
 
 - Tests: 143 green (`uv run pytest -q`); lint clean (`uv run ruff check src tests scripts dashboard`)
-- **Demo webpage (static scrollytelling)**: rebuild data with
-  `uv run python scripts/build_demo.py` (→ 232 KB `demo/public/data.json`),
-  view with `cd demo && npm run dev` — 9 scenes, first load ~420 KB wire,
-  MapLibre lazy; see README "Demo webpage (static scrollytelling)"
+- **Demo webpage (static scrollytelling)**: `make demo-serve` (builds + serves
+  on LAN, port 4173) or `make demo-dev`; data.json (232 KB) is committed, so a
+  fresh clone needs only Node ≥ 20 — regenerate with `make demo-data`;
+  9 scenes, first load ~420 KB wire, MapLibre lazy; see README "Demo webpage"
 - **Demo dashboard**: `uv run --group demo streamlit run dashboard/app.py` — six pages
   over the curated package in `data/processed/dashboard/` (~12 MB, 26 ms warm reads);
   see README "Demo dashboard"
