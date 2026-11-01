@@ -1,0 +1,89 @@
+// Shared MapLibre factory: custom dark style, optional CARTO raster underlay
+// (works offline — our own vector layers render regardless of tile errors).
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+const CARTO_TILES = ["a", "b", "c"].map(
+  (h) => `https://${h}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png`,
+);
+
+export function darkStyle({ basemap = true } = {}) {
+  const layers = [
+    { id: "bg", type: "background", paint: { "background-color": "#0b0f14" } },
+  ];
+  const sources = {};
+  if (basemap) {
+    sources.carto = {
+      type: "raster",
+      tiles: CARTO_TILES,
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    };
+    layers.push({
+      id: "carto",
+      type: "raster",
+      source: "carto",
+      paint: { "raster-opacity": 0.8, "raster-saturation": -0.2 },
+    });
+  }
+  return { version: 8, sources, layers };
+}
+
+export function makeMap(container, opts = {}) {
+  const map = new maplibregl.Map({
+    container,
+    style: darkStyle({ basemap: opts.basemap !== false }),
+    center: opts.center ?? [116.345, 39.968],
+    zoom: opts.zoom ?? 11.8,
+    interactive: opts.interactive !== false,
+    attributionControl: { compact: true },
+  });
+  if (opts.nav !== false) {
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
+  }
+  return map;
+}
+
+export function addHexes(map, id, geojson, color, opacity = 0.35) {
+  map.addSource(id, { type: "geojson", data: geojson });
+  map.addLayer({
+    id,
+    type: "fill",
+    source: id,
+    paint: {
+      "fill-color": color,
+      "fill-opacity": [
+        "case",
+        ["boolean", ["feature-state", "hover"], false],
+        Math.min(0.85, opacity + 0.35),
+        opacity,
+      ],
+      "fill-outline-color": "rgba(94, 234, 212, 0.35)",
+    },
+  });
+  map.addLayer({
+    id: `${id}-line`,
+    type: "line",
+    source: id,
+    paint: { "line-color": "rgba(233, 240, 247, 0.25)", "line-width": 0.6 },
+  });
+}
+
+export function addDots(map, id, geojson) {
+  map.addSource(id, { type: "geojson", data: geojson });
+  map.addLayer({
+    id,
+    type: "circle",
+    source: id,
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 6],
+      "circle-color": ["get", "color"],
+      "circle-stroke-color": "rgba(11,15,20,0.9)",
+      "circle-stroke-width": 1,
+    },
+  });
+}

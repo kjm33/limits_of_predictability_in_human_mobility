@@ -41,6 +41,28 @@ The dashboard reads only the curated package in `data/processed/dashboard/`
 (~12 MB) — never the big pipeline outputs. The `demo` dependency group
 (`streamlit`, `plotly`) is optional; everything else runs without it.
 
+## Demo webpage (static scrollytelling)
+
+A lightweight one-page website for a general audience — no equations, no
+framework runtime shipped, no browser freeze: hero count-ups, the six datasets,
+the noise→places funnel, the H3 hexagon morph (r9→r8), the 15-minute bucket
+clock with a live 5/15/60-min resolution comparison, an entropy guessing game,
+pattern-detection rates, and an interactive weekday×time trigger that fires a
+real routine card for GeoLife user 022.
+
+```bash
+uv run python scripts/build_demo.py     # parquets → demo/public/data.json (~230 KB)
+cd demo && npm install && npm run dev   # dev server (Node ≥ 20)
+npm run build && npm run preview        # production build (~1.6 MB dist, lazy MapLibre)
+```
+
+Every number on the page is computed by `scripts/build_demo.py` from
+`data/processed/` — nothing hand-typed. Stack: Vite + Svelte 5 + GSAP
+ScrollTrigger + MapLibre GL (custom dark style; optional CARTO raster basemap
+online, fully functional offline). See
+`efforts/2026-11-01-static-demo-website/` and
+`reports/2026-11-01-demo-website-analysis.md`.
+
 ## Datasets
 
 GeoLife is the primary dataset (above). Five more are integrated through the

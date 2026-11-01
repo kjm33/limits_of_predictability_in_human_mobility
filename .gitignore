@@ -23,3 +23,8 @@ research/
 *.parquet
 *.pt
 *.pkl
+
+# static demo build artifacts
+demo/node_modules/
+demo/dist/
+demo/public/data.json
