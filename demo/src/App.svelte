@@ -5,6 +5,8 @@
   import Funnel from "./scenes/Funnel.svelte";
   import HexMap from "./scenes/HexMap.svelte";
   import BucketClock from "./scenes/BucketClock.svelte";
+  import Discretize from "./scenes/Discretize.svelte";
+  import GzipWalk from "./scenes/GzipWalk.svelte";
   import GuessGame from "./scenes/GuessGame.svelte";
   import PatternBars from "./scenes/PatternBars.svelte";
   import TriggerDial from "./scenes/TriggerDial.svelte";
@@ -17,6 +19,8 @@
     ["funnel", "Noise → places"],
     ["hex", "Hexagons"],
     ["buckets", "Time slots"],
+    ["discretize", "Continuous → discrete"],
+    ["lz", "The gzip trick"],
     ["entropy", "Guessing game"],
     ["patterns", "Results"],
     ["trigger", "Triggers"],
@@ -74,6 +78,8 @@
   <Funnel {d} />
   <HexMap {d} />
   <BucketClock {d} />
+  <Discretize {d} />
+  <GzipWalk {d} />
   <GuessGame {d} />
   <PatternBars {d} />
   <TriggerDial {d} />

@@ -16,12 +16,16 @@ Schema (top level):
   game    : {regular:{diary:[cell names],N,S_unc,S_actual,Pi_unc,Pi_actual},
              wanderer:{...}}
   user022 : {pi:{N,S_unc,S_actual,Pi_actual},
+              lz:{k,cells,phrases,n_hours},          # gzip walk payload
+              markov:{top,n,rows,acc,n_pairs,n_eval},
              cells:[{i,h3,lat,lon,label}],
              hexes:{r9,r8,r7},       # GeoJSON FeatureCollections
              seq:{h0:[hours],cell:[i],known:[0/1]},
              stops:[{lat,lon,t,dwell}],         # <=1500, t = minutes since first
              grids:{"5"|"15"|"60":{nb,cells:[i|-1],support:[n weeks]}},
              places:[...], cards:[...]}
+  lz_trio : [{name,diary,S_rand,S_unc,S_actual}]   (4-hour toy diaries)
+  fano    : {n, points:[[S,Pi]]}   S -> ceiling curve for user022's N
 
 Run:  uv run python scripts/build_demo.py
 """
@@ -29,6 +33,7 @@ Run:  uv run python scripts/build_demo.py
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -221,6 +226,98 @@ def toy_diaries() -> dict:
     return {"regular": diary_song(commuter), "wanderer": diary_song(wanderer)}
 
 
+def lz_phrases(cells: list[int]) -> list[list[int]]:
+    """Greedy Lempel-Ziv parse for the walk animation: disjoint blocks, each
+    the shortest block starting there that never appeared earlier (the same
+    novel-block rule lz_entropy sums over *every* hour of the diary).
+    """
+    s = "".join(map(chr, cells))
+    n = len(s)
+    phrases: list[list[int]] = []
+    i = 0
+    while i < n:
+        length = 1
+        while i + length <= n and s.find(s[i:i + length], 0, i) != -1:
+            length += 1
+        phrases.append(list(range(i, min(i + length, n))))
+        i += length
+    return phrases
+
+
+def lz_toy_trio() -> list[dict]:
+    """Three 4-hour toy diaries: the routine, the drum beat, the free rein."""
+    out = []
+    for name, names in (
+        ("the routine", ["h"] * 4),
+        ("the drum beat", ["h", "w", "h", "w"]),
+        ("the free rein", ["h", "w", "c", "g"]),
+    ):
+        stats = diary_song(names)
+        out.append({
+            "name": name,
+            "diary": names,
+            "S_rand": round(math.log2(max(stats["N"], 1)), 2),
+            "S_unc": stats["S_unc"],
+            "S_actual": stats["S_actual"],
+        })
+    return out
+
+
+def fano_curve(n: int, steps: int = 61) -> list[list[float]]:
+    """[S, Pi] points from S=0..log2(n): the referee's rulebook as a curve."""
+    top = math.log2(n)
+    return [
+        [round(s, 3), round(float(ent.fano_predictability(s, n)), 3)]
+        for s in (i * top / (steps - 1) for i in range(steps))
+    ]
+
+
+def markov_table(cells: list[int], known: list[int], top: int = 4) -> dict:
+    """Order-1 "from here, where next?" table over a user's hourly cells.
+
+    The most-visited `top` cells keep their identity; the rest collapse into
+    one "elsewhere" bucket. Trained on the first 80% of consecutive known-hour
+    pairs, evaluated on the last 20% (origins never seen in training skipped).
+    """
+    pairs = [
+        (a, b)
+        for a, b, ka, kb in zip(
+            cells[:-1], cells[1:], known[:-1], known[1:], strict=True
+        )
+        if ka and kb
+    ]
+    if len(pairs) < 10:
+        return {}
+    counts_by = pd.Series([a for a, _ in pairs]).value_counts()
+    top_ids = [int(c) for c in counts_by.index[:top]]
+    remap = {c: i for i, c in enumerate(top_ids)}
+    other = len(top_ids)
+
+    def enc(c: int) -> int:
+        return remap.get(int(c), other)
+
+    n_train = int(len(pairs) * 0.8)
+    counts = np.zeros((other + 1, other + 1))
+    for a, b in pairs[:n_train]:
+        counts[enc(a), enc(b)] += 1
+    hits = eval_n = 0
+    for a, b in pairs[n_train:]:
+        row = counts[enc(a)]
+        if row.sum() == 0:
+            continue
+        eval_n += 1
+        hits += int(int(row.argmax()) == enc(b))
+    rows = counts / np.maximum(counts.sum(axis=1, keepdims=True), 1)
+    return {
+        "top": top_ids,
+        "n": other + 1,
+        "rows": [[round(float(v), 3) for v in r] for r in rows],
+        "acc": round(hits / eval_n, 3) if eval_n else None,
+        "n_pairs": len(pairs),
+        "n_eval": eval_n,
+    }
+
+
 # --------------------------------------------------------------------------
 # Real-data assembly
 # --------------------------------------------------------------------------
@@ -341,6 +438,74 @@ def build_user022() -> dict:
         for m in (5, 15, 60)
     }
 
+    cell_seq = seq["h3"].map(vidx).fillna(UNKNOWN).astype(int).tolist()
+    known_seq = seq["known"].astype(int).tolist()
+
+    # gzip-walk payload: first 96 known hours over the top-6 cells (+ elsewhere)
+    known_cells = [c for c, k in zip(cell_seq, known_seq, strict=True) if k]
+    top6 = [int(c) for c in pd.Series(known_cells).value_counts().index[:6]]
+    t6 = {c: i for i, c in enumerate(top6)}
+    lz_cells = [t6.get(int(c), 6) for c in known_cells[:96]]
+    lz = {
+        "k": 6,
+        "cells": lz_cells,
+        "phrases": lz_phrases(lz_cells),
+        "n_hours": len(known_cells),
+    }
+
+    # Discretization demo: a raw-GPS window around a Monday-15:00 departure
+    # (the very trip the trigger rule fires on). Points keep their raw
+    # lat/lon/t for the ticker; each also carries its r8 cell and quarter-hour
+    # bucket so the scene never computes H3 in the browser.
+    discretize = {}
+    pts = pd.read_parquet(
+        PROC / "points.parquet",
+        columns=["user", "ts", "lat", "lon"],
+        filters=[("user", "==", "022")],
+    )
+    mon = stops.copy()
+    mon["wd"] = mon["depart"].dt.weekday
+    hh = mon["depart"].dt.hour + mon["depart"].dt.minute / 60.0
+    mon = mon[(mon["wd"] == 0) & (hh >= 14.9) & (hh <= 15.3)]
+    anchor = mon["depart"].iloc[0] if len(mon) else stops["depart"].iloc[0]
+    w0 = anchor - pd.Timedelta(minutes=25)
+    win = pts[(pts["ts"] >= w0) & (pts["ts"] <= anchor + pd.Timedelta(minutes=45))]
+    win = win.sort_values("ts")
+    if len(win):
+        sampled = win.iloc[:: len(win) // 400 + 1] if len(win) > 400 else win
+        order: list[str] = []
+        raw = []
+        for r in sampled.itertuples():
+            c8 = h3.cell_to_parent(h3.latlng_to_cell(r.lat, r.lon, 9), 8)
+            if c8 not in order:
+                order.append(c8)
+            raw.append((r.ts, r.lat, r.lon, order.index(c8)))
+        dcells = []
+        for c8 in order:
+            lat8, lon8 = h3.cell_to_latlng(c8)
+            dcells.append({"lat": round(lat8, 5), "lon": round(lon8, 5)})
+        points = [
+            {
+                "t": int((ts - w0).total_seconds()),
+                "lat": round(lat, 5),
+                "lon": round(lon, 5),
+                "c": ci,
+                "b": int((ts.hour * 60 + ts.minute) // 15),
+                "wd": int(ts.weekday()),
+            }
+            for ts, lat, lon, ci in raw
+        ]
+        n_buckets = len({p["b"] for p in points})
+        discretize = {
+            "n_raw": int(len(win)),
+            "n_sample": len(points),
+            "n_cells": len(order),
+            "n_buckets": n_buckets,
+            "window_min": 70,
+            "cells": dcells,
+            "points": points,
+        }
+
     srt = stops.sort_values("arrive")
     if len(srt) > 1500:
         srt = srt.iloc[:: len(srt) // 1500 + 1]
@@ -355,7 +520,7 @@ def build_user022() -> dict:
     def clean(df: pd.DataFrame) -> list[dict]:
         keep = df[[
             "weekday", "bucket_str", "o_label", "d_label", "n_trips",
-            "support", "confidence", "o_lat", "o_lon", "d_lat", "d_lon",
+            "support", "confidence", "stability", "o_lat", "o_lon", "d_lat", "d_lon",
         ]].copy()
         return json.loads(keep.to_json(orient="records"))
 
@@ -374,9 +539,12 @@ def build_user022() -> dict:
         },
         "seq": {
             "h0": hours.astype(int).tolist(),
-            "cell": seq["h3"].map(vidx).fillna(UNKNOWN).astype(int).tolist(),
-            "known": seq["known"].astype(int).tolist(),
+            "cell": cell_seq,
+            "known": known_seq,
         },
+        "lz": lz,
+        "markov": markov_table(cell_seq, known_seq),
+        "discretize": discretize,
         "stops": stop_list,
         "grids": grids,
         "places": json.loads(places.to_json(orient="records")),
@@ -402,6 +570,7 @@ def main(out: Path = OUT_DEFAULT) -> Path:
 
     geo_row = summary[summary["dataset"] == "geolife"].iloc[0]
     geo = next(r for r in rows if r["key"] == "geolife")
+    u022 = build_user022()
     payload = {
         "meta": {
             "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -426,7 +595,12 @@ def main(out: Path = OUT_DEFAULT) -> Path:
         },
         "pi": pi_samples,
         "game": toy_diaries(),
-        "user022": build_user022(),
+        "lz_trio": lz_toy_trio(),
+        "fano": {
+            "n": u022["pi"]["N"],
+            "points": fano_curve(u022["pi"]["N"]),
+        },
+        "user022": u022,
     }
 
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -1,8 +1,22 @@
 <script>
   import Section from "../components/Section.svelte";
-  import { fmtPct } from "../lib/data.js";
+  import { fmtPct, WEEKDAYS } from "../lib/data.js";
 
   let { d } = $props();
+
+  const card = $derived(d.user022.cards[0]);
+  const geo = $derived(d.datasets.find((r) => r.key === "geolife"));
+  const dest = $derived.by(() => {
+    const R = 6371;
+    const toRad = (x) => (x * Math.PI) / 180;
+    const c = card;
+    const dl = toRad(c.d_lon - c.o_lon);
+    const dp = toRad(c.d_lat - c.o_lat);
+    const a =
+      Math.sin(dp / 2) ** 2 +
+      Math.cos(toRad(c.o_lat)) * Math.cos(toRad(c.d_lat)) * Math.sin(dl / 2) ** 2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  });
 
   const bars = $derived.by(() => {
     const rows = d.datasets.map((r) => ({
@@ -58,6 +72,49 @@
     {/each}
   </div>
 
+  {#if card}
+    <div class="panel anatomy" data-reveal>
+      <div class="ahead">
+        <h3>Anatomy of one firm rule</h3>
+        <p class="arule">
+          <b>{WEEKDAYS[card.weekday]}s, {card.bucket_str}</b> — leave
+          {card.o_label || "his most-visited place"} for
+          {card.d_label || `the same spot ${dest.toFixed(1)} km away`}.
+          It had to pass three gates before we ever called it a routine:
+        </p>
+      </div>
+      <div class="gates">
+        <div class="gate">
+          <span class="gnum">{card.support} weeks</span>
+          <span class="gname">SUPPORT</span>
+          <span class="gval">gate: ≥ 3 separate weeks</span>
+          <span class="gword">not a one-off — seen in three different weeks</span>
+        </div>
+        <div class="gate">
+          <span class="gnum">{Math.round(card.confidence * 100)}%</span>
+          <span class="gname">CONFIDENCE</span>
+          <span class="gval">gate: ≥ 50%</span>
+          <span class="gword">every time that weekday × quarter-hour came up,
+          it went to the same place</span>
+        </div>
+        <div class="gate">
+          <span class="gnum">{(card.confidence * card.stability).toFixed(2)}</span>
+          <span class="gname">SCORE</span>
+          <span class="gval">gate: ≥ 0.5 · confidence × stability</span>
+          <span class="gword">confident <em>and</em> consistent over time, not
+          just once</span>
+        </div>
+      </div>
+      {#if geo && geo.trigger != null}
+        <p class="apay">
+          And the payoff, on all GeoLife rules at once: when a rule fired, the
+          destination it called was right <b>{Math.round(geo.trigger * 100)} times
+          in 100</b>.
+        </p>
+      {/if}
+    </div>
+  {/if}
+
   <div class="grid threes" data-reveal>
     <div class="panel t">
       <div class="tnum num">100%</div>
@@ -105,6 +162,24 @@
   .bval .num { font-size: 24px; color: var(--accent); }
   .bval .bsub, .bsub { display: block; font-size: 12px; color: var(--faint); }
   .na { color: var(--faint); font-size: 20px; font-weight: 700; }
+  .anatomy { margin: 26px 0 0; padding: 20px 22px; }
+  .ahead h3 { margin: 0 0 8px; font-size: 17px; color: var(--ink); }
+  .arule { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 0 0 16px;
+           max-width: 78ch; }
+  .arule b { color: var(--accent); }
+  .gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .gate {
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+    display: grid; gap: 3px; background: var(--bg-2);
+  }
+  .gnum { font-size: 28px; font-weight: 700; color: var(--accent-2); }
+  .gname { font-size: 11px; letter-spacing: 0.1em; color: var(--faint); font-weight: 700; }
+  .gval { font-size: 12px; color: var(--muted); }
+  .gword { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .gword em { font-style: normal; color: var(--ink); font-weight: 600; }
+  .apay { margin: 16px 0 0; color: var(--muted); font-size: 14px;
+          border-top: 1px dashed var(--line); padding-top: 12px; }
+  .apay b { color: var(--accent); }
   .threes { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
   .t { padding: 18px; }
   .tnum { font-size: 34px; color: var(--accent-2); margin-bottom: 6px; }

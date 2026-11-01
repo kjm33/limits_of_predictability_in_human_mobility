@@ -3,6 +3,10 @@
 
   let { d } = $props();
 
+  const M = $derived(d.user022.markov);
+  const ROWLAB = ["at favourite place", "at 2nd place", "at 3rd place", "at 4th place", "everywhere else"];
+  const COLLAB = ["→ favourite", "→ 2nd", "→ 3rd", "→ 4th", "→ elsewhere"];
+
   const rows = $derived(
     d.datasets
       .map((r) => ({
@@ -57,6 +61,51 @@
     <span class="dot tw"></span> ceiling + “what time of week is it” methods win
     (sparse check-ins)
   </div>
+
+  {#if M && M.rows}
+    <div class="panel mkpanel" data-reveal>
+      <div class="mkgrid">
+        <div class="mkrow mkhead">
+          <span></span>
+          {#each COLLAB as c (c)}<span class="mkcol">{c}</span>{/each}
+        </div>
+        {#each M.rows as row, i (ROWLAB[i])}
+          <div class="mkrow">
+            <span class="mkrowlab">{ROWLAB[i]}</span>
+            {#each row as p, j (j)}
+              <div
+                class="mkcell"
+                class:diag={i === j}
+                style="background: rgba(94, 234, 212, {(p * 0.88).toFixed(3)})"
+              >
+                {#if p >= 0.05}{Math.round(p * 100)}%{/if}
+              </div>
+            {/each}
+          </div>
+        {/each}
+      </div>
+      <div class="mktext">
+        <h3>The honest check: “where → next” for volunteer 022</h3>
+        <p>
+          Each row asks: <em>he's at this place now — where is he next hour?</em>
+          Dark teal = likely. From his favourite place he stays put
+          {Math.round(M.rows[0][0] * 100)}% of hours; almost everything else is
+          “elsewhere”, because 100 other places share the leftovers.
+        </p>
+        <p>
+          Counted this way, the simple table scores
+          <b>{Math.round(M.acc * 100)}%</b> — <em>higher</em> than his
+          {Math.round(d.user022.pi.Pi_actual * 100)}% ceiling. No contradiction:
+          the table only answers the <b>{Math.round((M.n_eval / M.n_pairs) * 100)}%
+          of hour-to-hour jumps</b> that start at a favourite place he'd been
+          seen at before ({M.n_eval} of {M.n_pairs} testable pairs); the ceiling
+          prices <em>every</em> hour, gaps and one-offs included. Condition on
+          the easy hours and any method looks brilliant — that conditioning, not
+          magic, is what “where were you just now” methods exploit.
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <p class="caption" data-reveal>
     <span class="words">Brightkite check-ins cap at ~68% predictability while
@@ -118,6 +167,27 @@
   }
   .dot.mk { background: var(--accent); }
   .dot.tw { background: var(--accent-2); }
+  .mkpanel {
+    margin: 26px 0 6px; padding: 22px;
+    display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 26px;
+  }
+  .mkgrid { display: grid; gap: 4px; align-content: start; }
+  .mkrow { display: grid; grid-template-columns: 128px repeat(5, 1fr); gap: 4px; }
+  .mkrowlab { font-size: 12px; color: var(--muted); align-self: center; text-align: right;
+              padding-right: 6px; }
+  .mkcol { font-size: 10.5px; color: var(--faint); text-align: center; align-self: end; }
+  .mkhead { margin-bottom: 2px; }
+  .mkcell {
+    aspect-ratio: 1.55; border-radius: 5px; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: var(--bg); border: 1px solid var(--line);
+  }
+  .mkcell.diag { outline: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+                 outline-offset: -4px; }
+  .mktext h3 { margin: 0 0 10px; font-size: 17px; color: var(--ink); }
+  .mktext p { color: var(--muted); font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
+  .mktext p:last-child { margin-bottom: 0; }
+  .mktext em { color: var(--ink); font-style: normal; font-weight: 600; }
+  .mktext b { color: var(--accent); }
   .threes { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top: 28px; }
   .panel h3 { font-size: 17px; color: var(--accent); }
   .panel p { color: var(--muted); font-size: 14px; margin: 0; }
@@ -126,5 +196,8 @@
     .bname { text-align: left; grid-column: 1; }
     .btrack { grid-column: 1; }
     .bmodel { grid-column: 1 / -1; }
+    .mkpanel { grid-template-columns: 1fr; }
+    .mkrow { grid-template-columns: 92px repeat(5, 1fr); }
+    .mkrowlab { font-size: 10px; }
   }
 </style>

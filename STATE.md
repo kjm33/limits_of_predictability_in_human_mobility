@@ -10,14 +10,20 @@
 
 ## Live numbers
 
-- Tests: 143 green (`uv run pytest -q`); lint clean (`uv run ruff check src tests scripts dashboard`)
+- Tests: 149 green (`uv run pytest -q`); lint clean (`uv run ruff check src tests scripts dashboard`)
 - **Demo webpage (static scrollytelling)**: `make demo-serve` (builds + serves
-  on LAN, port 4173) or `make demo-dev`; data.json (250 KB) is committed, so a
+  on LAN, port 4173) or `make demo-dev`; data.json (279 KB) is committed, so a
   fresh clone needs only Node ≥ 20 — regenerate with `make demo-data`;
-  9 scenes. No map library anymore (MapLibre + HERE basemap removed at user
+  11 scenes. No map library anymore (MapLibre + HERE basemap removed at user
   request): the hexagon explainer is a schematic SVG (7 r9 cells → 1 r8 parent
   → r7 district) and the trigger scene is a single-column weekday×time
-  console. See README "Demo webpage"
+  console. Explainer additions (2026-11-01): Discretize scene (2,529 raw GPS
+  records → 107 hexagons × 5 quarter-hours, animated), gzip-trick scene (LZ
+  block walk on 96 real hours of user 022), Fano curve + slider and per-dataset
+  Π histograms in the guessing game, rule-anatomy panel (support/confidence/
+  score gates), and a Markov transition-grid panel (022: 90% on the easy 1-in-5
+  hours vs 86% ceiling — conditioning, not paradox). Background math note:
+  `notes/2026-11-01-markov-fano-s-explained.md`. See README "Demo webpage"
 - **Demo dashboard**: `uv run --group demo streamlit run dashboard/app.py` — six pages
   over the curated package in `data/processed/dashboard/` (~12 MB, 26 ms warm reads);
   see README "Demo dashboard"
