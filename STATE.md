@@ -16,9 +16,11 @@
   fresh clone needs only Node ≥ 20 — regenerate with `make demo-data`;
   9 scenes, first load ~430 KB wire, MapLibre lazy. Hex map has r9/r8/r7 level
   buttons + scroll-driven mode, fits the home-anchored core of stops (a 900 km
-  trip is excluded from the initial view). Optional HERE street basemap: open
-  `?here_key=YOUR_KEY` once (platform.here.com key, stored in localStorage);
-  without it the maps run fully offline. See README "Demo webpage"
+  trip is excluded from the initial view). Optional HERE street basemap:
+  `VITE_HERE_API_KEY` in the repo-root `.env` (git-ignored, see `.env.example`)
+  then `make demo-serve`, or per-browser `?here_key=YOUR_KEY` once (stored in
+  localStorage); without a key the maps run fully offline. See README "Demo
+  webpage"
 - **Demo dashboard**: `uv run --group demo streamlit run dashboard/app.py` — six pages
   over the curated package in `data/processed/dashboard/` (~12 MB, 26 ms warm reads);
   see README "Demo dashboard"

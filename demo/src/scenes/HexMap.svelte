@@ -171,9 +171,12 @@
         </div>
         {#if !hasHere}
           <p class="hint">
-            Want real streets under the hexagons? Open this page once as
-            <code>?here_key=YOUR_KEY</code> — a HERE platform key (free base
-            plan). It is stored in your browser only.
+            Want real streets under the hexagons? Put your HERE platform key
+            (free base plan, platform.here.com) in the repo-root
+            <code>.env</code> as <code>VITE_HERE_API_KEY</code> and rebuild
+            (<code>make demo-serve</code>), or open this page once as
+            <code>?here_key=YOUR_KEY</code> — that one is stored in your
+            browser only.
           </p>
         {/if}
       </div>

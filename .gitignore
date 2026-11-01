@@ -27,3 +27,8 @@ research/
 # static demo build artifacts
 demo/node_modules/
 demo/dist/
+
+# secrets (HERE API key for the demo) — .env.example stays tracked
+.env
+.env.*
+!.env.example

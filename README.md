@@ -64,10 +64,14 @@ handles both). To regenerate the data after a pipeline change:
 
 **Optional street basemap (HERE).** The maps work fully offline (hexagons on a
 dark canvas). To put real streets underneath, get an API key from a
-[HERE platform](https://platform.here.com) account (base plan is free) and open
-the page once as `http://<host>:4173/?here_key=YOUR_KEY` — the key is stored in
-your browser's localStorage only, stripped from the URL, and never enters the
-repo. Remove it anytime: localStorage → delete `here_key`.
+[HERE platform](https://platform.here.com) account (base plan is free), put it
+in the repo-root `.env` as `VITE_HERE_API_KEY` (see `.env.example`; the file is
+git-ignored) and rebuild — `make demo-serve` bakes it into the bundle.
+Alternative for a single browser: open the page once as
+`http://<host>:4173/?here_key=YOUR_KEY` — stored in that browser's localStorage
+only, stripped from the URL, never enters the repo. Remove anytime: localStorage
+→ delete `here_key`. Note: a baked-in key is readable by anyone who can reach
+the served bundle — fine on a trusted LAN.
 
 Every number on the page is computed by `scripts/build_demo.py` from
 `data/processed/` — nothing hand-typed. Stack: Vite + Svelte 5 + GSAP
