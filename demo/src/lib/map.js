@@ -1,39 +1,22 @@
-// Shared MapLibre factory: custom dark style, optional CARTO raster underlay
-// (works offline — our own vector layers render regardless of tile errors).
+// Shared MapLibre factory: custom dark style, fully offline — no tile server,
+// no API keys. Our own vector layers (hexes, dots, routes) are the whole map.
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const CARTO_TILES = ["a", "b", "c"].map(
-  (h) => `https://${h}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png`,
-);
-
-export function darkStyle({ basemap = true } = {}) {
-  const layers = [
-    { id: "bg", type: "background", paint: { "background-color": "#0b0f14" } },
-  ];
-  const sources = {};
-  if (basemap) {
-    sources.carto = {
-      type: "raster",
-      tiles: CARTO_TILES,
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    };
-    layers.push({
-      id: "carto",
-      type: "raster",
-      source: "carto",
-      paint: { "raster-opacity": 0.8, "raster-saturation": -0.2 },
-    });
-  }
-  return { version: 8, sources, layers };
+export function darkStyle() {
+  return {
+    version: 8,
+    sources: {},
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": "#0b0f14" } },
+    ],
+  };
 }
 
 export function makeMap(container, opts = {}) {
   const map = new maplibregl.Map({
     container,
-    style: darkStyle({ basemap: opts.basemap !== false }),
+    style: darkStyle(),
     center: opts.center ?? [116.345, 39.968],
     zoom: opts.zoom ?? 11.8,
     interactive: opts.interactive !== false,

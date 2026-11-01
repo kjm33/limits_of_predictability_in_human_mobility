@@ -9,6 +9,7 @@
   let map = $state(null);
   let phase = $state(0); // 0 = r9, 1 = r8
   let loaded = $state(false);
+  let mapFailed = $state(false);
 
   const steps = [
     {
@@ -33,7 +34,14 @@
     if (!mapEl) return;
     let killed = false;
     let st = null;
-    const m = makeMap(mapEl, { center: [116.345, 39.968], zoom: 11.6 });
+    let m;
+    try {
+      m = makeMap(mapEl, { center: [116.345, 39.968], zoom: 11.6 });
+    } catch (err) {
+      console.warn("map init failed:", err);
+      mapFailed = true;
+      return;
+    }
     m.on("load", () => {
       if (killed) return;
       addHexes(m, "r9", u.hexes.r9, "#5eead4", 0.42);
@@ -79,7 +87,16 @@
   <div class="grid two">
     <div class="mapcol">
       <div class="sticky">
-        <div class="map" bind:this={mapEl}></div>
+        <div class="map" bind:this={mapEl}>
+          {#if mapFailed}
+            <div class="mapfail">
+              This browser can’t draw the interactive map (WebGL unavailable) —
+              but the idea is simple: every stop of this Beijing volunteer is
+              pinned to a hexagonal cell about one city block wide, and seven
+              blocks roll up into one neighbourhood cell.
+            </div>
+          {/if}
+        </div>
         <div class="badge" class:hi={phase === 1}>
           {phase === 1 ? "r8 · ~0.74 km² · neighbourhood" : "r9 · ~0.10 km² · city block"}
         </div>
@@ -106,6 +123,11 @@
   .map {
     height: 62vh; min-height: 420px;
     border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  }
+  .mapfail {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    padding: 28px; color: var(--muted); font-size: 15px;
+    background: var(--bg-2); text-align: center;
   }
   .badge {
     position: absolute; left: 14px; bottom: 14px;

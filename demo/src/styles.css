@@ -7,7 +7,7 @@
   --line: #223041;
   --ink: #e9f0f7;
   --muted: #93a6b8;
-  --faint: #5c7085;
+  --faint: #7d91a6;
   --accent: #5eead4;   /* teal */
   --accent-2: #f0abfc; /* pink */
   --warn: #fbbf24;     /* amber */
@@ -72,8 +72,8 @@ section.scene {
 }
 
 .note {
-  font-size: 14px;
-  color: var(--faint);
+  font-size: 14.5px;
+  color: var(--muted);
   max-width: 46rem;
 }
 
@@ -96,7 +96,7 @@ section.scene {
 }
 
 .caption {
-  font-size: 14px;
+  font-size: 15.5px;
   color: var(--muted);
   max-width: 46rem;
   border-left: 3px solid var(--accent);
@@ -104,7 +104,7 @@ section.scene {
   margin-top: 14px;
 }
 
-.caption .words { color: var(--faint); }
+.caption .words { color: var(--muted); }
 
 button {
   font: inherit;
