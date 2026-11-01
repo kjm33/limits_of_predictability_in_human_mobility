@@ -45,11 +45,12 @@ The dashboard reads only the curated package in `data/processed/dashboard/`
 
 A lightweight one-page website for a general audience — no equations, no
 framework runtime shipped, no browser freeze: hero count-ups, the six datasets,
-the noise→places funnel, the H3 hexagon explorer (r9 blocks / r8 neighbourhoods /
-r7 districts — scroll-driven or via buttons), the 15-minute bucket
+the noise→places funnel, the H3 hexagon explainer (how seven block-cells
+fold into one neighbourhood cell), the 15-minute bucket
 clock with a live 5/15/60-min resolution comparison, an entropy guessing game,
 pattern-detection rates, and an interactive weekday×time trigger that fires a
-real routine card for GeoLife user 022.
+real routine card for GeoLife user 022. No map tiles, no WebGL, no API keys —
+every visual is a lightweight SVG.
 
 ```bash
 make demo-serve    # one command: install deps → build → serve on your LAN (Ctrl+C to stop)
@@ -62,21 +63,9 @@ parquets. Requirements: Node ≥ 20 (`nodejs.org`) and `npm install` (the Makefi
 handles both). To regenerate the data after a pipeline change:
 `make demo-data` (needs the uv environment and the `data/processed/` tree).
 
-**Optional street basemap (HERE).** The maps work fully offline (hexagons on a
-dark canvas). To put real streets underneath, get an API key from a
-[HERE platform](https://platform.here.com) account (base plan is free), put it
-in the repo-root `.env` as `VITE_HERE_API_KEY` (see `.env.example`; the file is
-git-ignored) and rebuild — `make demo-serve` bakes it into the bundle.
-Alternative for a single browser: open the page once as
-`http://<host>:4173/?here_key=YOUR_KEY` — stored in that browser's localStorage
-only, stripped from the URL, never enters the repo. Remove anytime: localStorage
-→ delete `here_key`. Note: a baked-in key is readable by anyone who can reach
-the served bundle — fine on a trusted LAN.
-
 Every number on the page is computed by `scripts/build_demo.py` from
 `data/processed/` — nothing hand-typed. Stack: Vite + Svelte 5 + GSAP
-ScrollTrigger + MapLibre GL (custom dark style; optional HERE raster basemap
-online, fully functional offline). See
+ScrollTrigger + hand-rolled SVG (no map library, fully offline). See
 `efforts/2026-11-01-static-demo-website/` and
 `reports/2026-11-01-demo-website-analysis.md`.
 

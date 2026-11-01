@@ -1,28 +1,57 @@
 <script>
-  import { ScrollTrigger } from "../lib/anim.js";
-  import { makeMap, addHexes, coreBounds, hereApiKey } from "../lib/map.js";
+  // Map-free scene: the hexagon idea as a schematic diagram (7 cells fold into
+  // one parent), not a geographic map. No tiles, no WebGL, no keys.
+  const R9 = 30; // circumradius of an r9 hexagon in SVG units
+  const R8 = Math.sqrt(7) * R9; // area ×7 → radius ×√7
+  const R7 = Math.sqrt(49) * R9; // area ×49
 
-  let { d } = $props();
-  const u = $derived(d.user022);
-  const hasHere = $derived(!!hereApiKey());
+  // pointy-top hexagon path (H3 look)
+  function hexPath(cx, cy, r) {
+    const pt = (a) =>
+      `${(cx + r * Math.cos((a * Math.PI) / 180)).toFixed(1)},${(
+        cy +
+        r * Math.sin((a * Math.PI) / 180)
+      ).toFixed(1)}`;
+    const angles = [90, 150, 210, 270, 330, 30];
+    return `M${pt(angles[0])} L${pt(angles[1])} L${pt(angles[2])} L${pt(angles[3])} L${pt(angles[4])} L${pt(angles[5])} Z`;
+  }
 
-  let mapEl = $state(null);
-  let level = $state("auto"); // 'auto' | 'r9' | 'r8' | 'r7'
-  let badge = $state("r9");
-  let loaded = $state(false);
-  let mapFailed = $state(false);
-  let autoMix = 0;
+  // 7 r9 cells: one centre + six neighbours (pointy-top offsets)
+  const r9cells = [
+    [0, 0],
+    [Math.sqrt(3) * R9, 0],
+    [Math.sqrt(3) * R9 * 0.5, 1.5 * R9],
+    [-Math.sqrt(3) * R9 * 0.5, 1.5 * R9],
+    [-Math.sqrt(3) * R9, 0],
+    [-Math.sqrt(3) * R9 * 0.5, -1.5 * R9],
+    [Math.sqrt(3) * R9 * 0.5, -1.5 * R9],
+  ].map(([dx, dy]) => ({ d: hexPath(360 + dx, 250 + dy, R9) }));
 
-  const LEVELS = [
-    { id: "r9", name: "blocks r9", area: "r9 · ~0.10 km² · city block", fill: 0.55, dz: 0 },
-    { id: "r8", name: "neighbourhood r8", area: "r8 · ~0.74 km² · neighbourhood", fill: 0.6, dz: -1.4 },
-    { id: "r7", name: "district r7", area: "r7 · ~5.2 km² · district", fill: 0.65, dz: -2.6 },
+  const legend = [
+    {
+      chip: "#5eead4",
+      name: "r9",
+      area: "~0.10 km²",
+      what: "city block — every stop lands in exactly one",
+    },
+    {
+      chip: "#f0abfc",
+      name: "r8",
+      area: "~0.74 km²",
+      what: "neighbourhood — 7 blocks fold into one parent",
+    },
+    {
+      chip: "#fbbf24",
+      name: "r7",
+      area: "~5.2 km²",
+      what: "district — the whole city in a handful of cells",
+    },
   ];
 
   const steps = [
     {
       t: "Cut the city into hexagons",
-      b: "Every stop is pinned to a hexagonal cell from Uber's H3 grid. These are real cells for one Beijing volunteer — small r9 cells, about 0.10 km² each. Roughly a city block.",
+      b: "Every stop is pinned to a hexagonal cell from Uber's H3 grid. The smallest cells we use, r9, cover about 0.10 km² each — roughly a city block. The diagram shows how seven of them fold into one bigger cell.",
     },
     {
       t: "Why hexagons, not squares?",
@@ -30,108 +59,13 @@
     },
     {
       t: "Zoom out one level: r9 → r8",
-      b: "Rolling every small hex up to its parent gives r8 cells of ~0.74 km² — a neighbourhood. Patterns too small to see at block scale (home ↔ two nearby shops) merge into one clean story: home ↔ neighbourhood. Try it yourself with the buttons under the map — there is one more level, r7, a whole ~5 km² district.",
+      b: "Rolling every small hex up to its parent gives r8 cells of ~0.74 km² — a neighbourhood. Patterns too small to see at block scale (home ↔ two nearby shops) merge into one clean story: home ↔ neighbourhood. One more level up, r7, is a whole ~5 km² district.",
     },
     {
       t: "One honest gotcha",
       b: "H3 parents don't nest perfectly: encode the same spot independently at r8 and you land in the same parent as the official roll-up only ~93% of the time. We always derive parents the official way — a 7% silent mismatch is how phantom 'trips' are born.",
     },
   ];
-
-  let map = null; // plain MapLibre handle — never wrap it in $state
-  let z0 = 13.4;
-
-  const fillExpr = (base) => [
-    "case",
-    ["boolean", ["feature-state", "hover"], false],
-    Math.min(0.85, base + 0.35),
-    base,
-  ];
-
-  function setFill(id, fill, line) {
-    if (!map || !map.getLayer(id)) return;
-    map.setPaintProperty(id, "fill-opacity", fillExpr(fill));
-    map.setPaintProperty(`${id}-line`, "line-opacity", line);
-  }
-
-  function applyAuto(mix) {
-    autoMix = mix;
-    badge = mix > 0.5 ? "r8" : "r9";
-    setFill("r9", 0.55 * (1 - mix) + 0.05, 0.6 * (1 - mix));
-    setFill("r8", 0.6 * mix, 0.85 * mix);
-    setFill("r7", 0, 0);
-    map?.easeTo({ zoom: z0 - 1.4 * mix, duration: 300 });
-  }
-
-  function setLevel(l) {
-    level = l;
-    if (!map || !loaded) return;
-    if (l === "auto") {
-      applyAuto(autoMix);
-      return;
-    }
-    const spec = LEVELS.find((x) => x.id === l);
-    badge = l;
-    for (const lv of LEVELS) setFill(lv.id, lv.id === l ? lv.fill : 0, lv.id === l ? 0.85 : 0);
-    map.easeTo({ zoom: z0 + spec.dz, duration: 500 });
-  }
-
-  $effect(() => {
-    if (!mapEl) return;
-    let killed = false;
-    let st = null;
-    let ro = null;
-    let m;
-    try {
-      m = makeMap(mapEl, { center: [116.345, 39.968], zoom: 11.6 });
-    } catch (err) {
-      console.warn("map init failed:", err);
-      mapFailed = true;
-      return;
-    }
-    m.on("load", () => {
-      if (killed) return;
-      addHexes(m, "r9", u.hexes.r9, "#5eead4", 0.0);
-      addHexes(m, "r8", u.hexes.r8, "#f0abfc", 0.0);
-      addHexes(m, "r7", u.hexes.r7, "#fbbf24", 0.0);
-      for (const lv of ["r9", "r8", "r7"]) {
-        m.setPaintProperty(`${lv}-line`, "line-width", 1.1);
-      }
-      // Fit where the action is: the core ~90% of stops. Rare far cells stay
-      // on the map but must not shrink each hex to a speck.
-      // Fit where the action is: the core ~70% of stops within 25 km of home
-      // (a single far stop in a fraction cut once stretched the view 900 km).
-      const stopPts = u.stops.map((s) => [s.lon, s.lat]);
-      const anchorCard = u.cards[0] ?? u.places[0];
-      const anchor = [anchorCard.o_lon ?? anchorCard.mean_lon, anchorCard.o_lat ?? anchorCard.mean_lat];
-      const cb = coreBounds(stopPts, anchor);
-      m.fitBounds(cb, { padding: 36, duration: 0 });
-      z0 = m.getZoom();
-      setFill("r9", 0.55, 0.6);
-      badge = "r9";
-      loaded = true;
-      st = ScrollTrigger.create({
-        trigger: mapEl.closest("section"),
-        start: "top top",
-        end: "bottom bottom",
-        onUpdate: (self) => {
-          if (level !== "auto") return;
-          const mix = Math.min(1, Math.max(0, (self.progress - 0.4) / 0.3));
-          applyAuto(mix);
-        },
-      });
-    });
-    map = m;
-    ro = new ResizeObserver(() => m.resize());
-    ro.observe(mapEl);
-    return () => {
-      killed = true;
-      st?.kill();
-      ro?.disconnect();
-      m.remove();
-      map = null;
-    };
-  });
 </script>
 
 <section class="scene" id="hex">
@@ -146,44 +80,47 @@
   </div>
 
   <div class="grid two">
-    <div class="mapcol">
-      <div class="sticky">
-        <div class="map" bind:this={mapEl}>
-          {#if mapFailed}
-            <div class="mapfail">
-              This browser can’t draw the interactive map (WebGL unavailable) —
-              but the idea is simple: every stop of this Beijing volunteer is
-              pinned to a hexagonal cell about one city block wide, and seven
-              blocks roll up into one neighbourhood cell.
+    <div class="vizcol">
+      <div class="sticky" data-reveal>
+        <svg viewBox="0 0 720 520" role="img" aria-label="Seven small hexagons folding into one parent hexagon, inside one district hexagon">
+          <!-- r7 district -->
+          <path d={hexPath(360, 250, R7)} fill="rgba(251,191,36,0.05)" stroke="#fbbf24" stroke-width="2" />
+          <!-- r8 parent -->
+          <path d={hexPath(360, 250, R8)} fill="rgba(240,171,252,0.08)" stroke="#f0abfc" stroke-width="2" />
+          <!-- 7 × r9 cells -->
+          {#each r9cells as c, i (i)}
+            <path d={c.d} fill="rgba(94,234,212,0.38)" stroke="#5eead4" stroke-width="1.4" />
+          {/each}
+          <!-- labels with leader lines -->
+          <line x1="392" y1="221" x2="560" y2="120" stroke="var(--line)" />
+          <text x="566" y="116" class="lab" fill="#5eead4">7 × r9 blocks</text>
+          <line x1="425" y1="212" x2="560" y2="196" stroke="var(--line)" />
+          <text x="566" y="192" class="lab" fill="#f0abfc">1 × r8 parent</text>
+          <line x1="540" y1="330" x2="560" y2="272" stroke="var(--line)" />
+          <text x="566" y="268" class="lab" fill="#fbbf24">1 × r7 district</text>
+        </svg>
+        <div class="legend">
+          {#each legend as l (l.name)}
+            <div class="lrow">
+              <span class="chip" style="background:{l.chip}"></span>
+              <b>{l.name}</b>
+              <span class="area">{l.area}</span>
+              <span class="what">{l.what}</span>
             </div>
-          {/if}
-        </div>
-        <div class="badge">{LEVELS.find((l) => l.id === badge)?.area}</div>
-        <div class="lvls">
-          <button class:active={level === "auto"} onclick={() => setLevel("auto")}>
-            scroll-driven
-          </button>
-          {#each LEVELS as lv (lv.id)}
-            <button class:active={level === lv.id} onclick={() => setLevel(lv.id)}>
-              {lv.name}
-            </button>
           {/each}
         </div>
-        {#if !hasHere}
-          <p class="hint">
-            Want real streets under the hexagons? Put your HERE platform key
-            (free base plan, platform.here.com) in the repo-root
-            <code>.env</code> as <code>VITE_HERE_API_KEY</code> and rebuild
-            (<code>make demo-serve</code>), or open this page once as
-            <code>?here_key=YOUR_KEY</code> — that one is stored in your
-            browser only.
-          </p>
-        {/if}
+        <p class="caption">
+          <span class="words">
+            In words: seven little block-cells roll up into one parent cell —
+            the official H3 way, never re-encoded from raw GPS (see the gotcha
+            below).
+          </span>
+        </p>
       </div>
     </div>
     <div class="textcol">
-      {#each steps as s, i (s.t)}
-        <div class="tstep">
+      {#each steps as s (s.t)}
+        <div class="tstep" data-reveal>
           <h3>{s.t}</h3>
           <p>{s.b}</p>
         </div>
@@ -199,38 +136,22 @@
     align-items: start;
   }
   .sticky { position: sticky; top: 8vh; }
-  .map {
-    height: 62vh; min-height: 420px;
-    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  .viz {
+    border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel); padding: 10px;
   }
-  .mapfail {
-    height: 100%; display: flex; align-items: center; justify-content: center;
-    padding: 28px; color: var(--muted); font-size: 15px;
-    background: var(--bg-2); text-align: center;
+  svg { width: 100%; height: auto; display: block; }
+  .lab { font-size: 14px; font-weight: 600; }
+  .legend { margin-top: 6px; display: grid; gap: 8px; }
+  .lrow { display: flex; align-items: baseline; gap: 10px; font-size: 14.5px; }
+  .lrow b { color: var(--ink); min-width: 2.4ch; }
+  .lrow .chip {
+    width: 12px; height: 12px; border-radius: 4px; align-self: center;
+    flex: none;
   }
-  .badge {
-    position: absolute; left: 14px; bottom: 58px;
-    background: rgba(11, 15, 20, 0.85); border: 1px solid var(--line);
-    color: var(--muted); font-size: 13px; padding: 6px 12px; border-radius: 999px;
-    pointer-events: none;
-  }
-  .lvls { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-  .lvls button {
-    flex: 1; min-width: 100px; padding: 8px 6px; font-size: 13.5px;
-    color: var(--muted); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
-  }
-  .lvls button.active {
-    color: var(--ink); border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-  }
-  .hint {
-    margin: 10px 2px 0; font-size: 13.5px; color: var(--muted); line-height: 1.5;
-  }
-  .hint code {
-    color: var(--accent); background: var(--bg-2);
-    padding: 1px 6px; border-radius: 6px; font-size: 12.5px;
-  }
+  .lrow .area { color: var(--accent); font-variant-numeric: tabular-nums; min-width: 8ch; }
+  .lrow .what { color: var(--muted); }
+  .caption { margin-top: 12px; }
   .textcol { padding: 0 6px; }
   .tstep { min-height: 58vh; display: flex; flex-direction: column; justify-content: center; }
   .tstep h3 { font-size: 22px; color: var(--ink); }

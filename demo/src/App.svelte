@@ -3,16 +3,12 @@
   import Hero from "./scenes/Hero.svelte";
   import DataGallery from "./scenes/DataGallery.svelte";
   import Funnel from "./scenes/Funnel.svelte";
+  import HexMap from "./scenes/HexMap.svelte";
   import BucketClock from "./scenes/BucketClock.svelte";
   import GuessGame from "./scenes/GuessGame.svelte";
   import PatternBars from "./scenes/PatternBars.svelte";
+  import TriggerDial from "./scenes/TriggerDial.svelte";
   import Punchline from "./scenes/Punchline.svelte";
-
-  // MapLibre scenes load lazily (~850 KB of the bundle) — first paint stays light.
-  let HexMap = $state(null);
-  let TriggerDial = $state(null);
-  import("./scenes/HexMap.svelte").then((m) => (HexMap = m.default));
-  import("./scenes/TriggerDial.svelte").then((m) => (TriggerDial = m.default));
 
 
   const SECTIONS = [
@@ -76,19 +72,11 @@
   <Hero {d} />
   <DataGallery {d} />
   <Funnel {d} />
-  {#if HexMap}
-    <HexMap {d} />
-  {:else}
-    <section class="scene" id="hex"><div class="wrap"><p class="lede">loading map…</p></div></section>
-  {/if}
+  <HexMap {d} />
   <BucketClock {d} />
   <GuessGame {d} />
   <PatternBars {d} />
-  {#if TriggerDial}
-    <TriggerDial {d} />
-  {:else}
-    <section class="scene" id="trigger"><div class="wrap"><p class="lede">loading map…</p></div></section>
-  {/if}
+  <TriggerDial {d} />
   <Punchline {d} />
 
   <footer>
@@ -102,7 +90,7 @@
       </p>
       <p class="fine">
         Prediction: next-place forecasting under the limits measured by Song et
-        al. (2010). H3 grid © Uber. Basemaps © OpenStreetMap contributors, © CARTO.
+        al. (2010). H3 grid © Uber.
       </p>
     </div>
   </footer>

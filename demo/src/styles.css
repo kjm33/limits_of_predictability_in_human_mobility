@@ -123,18 +123,6 @@ button.active {
 
 input[type="range"] { accent-color: var(--accent); }
 
-/* MapLibre popups on dark bg */
-.maplibregl-popup-content {
-  background: var(--panel-2) !important;
-  color: var(--ink) !important;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  font-size: 13px;
-  padding: 8px 10px !important;
-}
-.maplibregl-popup-tip { border-top-color: var(--panel-2) !important; }
-.maplibregl-ctrl-attrib { background: rgba(11, 15, 20, 0.7) !important; }
-
 @media (max-width: 720px) {
   body { font-size: 16px; }
   section.scene { padding: 9vh 0; }
