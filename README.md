@@ -45,7 +45,8 @@ The dashboard reads only the curated package in `data/processed/dashboard/`
 
 A lightweight one-page website for a general audience — no equations, no
 framework runtime shipped, no browser freeze: hero count-ups, the six datasets,
-the noise→places funnel, the H3 hexagon morph (r9→r8), the 15-minute bucket
+the noise→places funnel, the H3 hexagon explorer (r9 blocks / r8 neighbourhoods /
+r7 districts — scroll-driven or via buttons), the 15-minute bucket
 clock with a live 5/15/60-min resolution comparison, an entropy guessing game,
 pattern-detection rates, and an interactive weekday×time trigger that fires a
 real routine card for GeoLife user 022.
@@ -55,15 +56,22 @@ make demo-serve    # one command: install deps → build → serve on your LAN (
 make demo-dev      # or: hot-reload dev server, also LAN-accessible
 ```
 
-The site's entire data payload (`demo/public/data.json`, ~230 KB) is **committed
+The site's entire data payload (`demo/public/data.json`, ~250 KB) is **committed
 to the repo**, so a fresh clone runs the demo with Node.js alone — no Python, no
 parquets. Requirements: Node ≥ 20 (`nodejs.org`) and `npm install` (the Makefile
 handles both). To regenerate the data after a pipeline change:
 `make demo-data` (needs the uv environment and the `data/processed/` tree).
 
+**Optional street basemap (HERE).** The maps work fully offline (hexagons on a
+dark canvas). To put real streets underneath, get an API key from a
+[HERE platform](https://platform.here.com) account (base plan is free) and open
+the page once as `http://<host>:4173/?here_key=YOUR_KEY` — the key is stored in
+your browser's localStorage only, stripped from the URL, and never enters the
+repo. Remove it anytime: localStorage → delete `here_key`.
+
 Every number on the page is computed by `scripts/build_demo.py` from
 `data/processed/` — nothing hand-typed. Stack: Vite + Svelte 5 + GSAP
-ScrollTrigger + MapLibre GL (custom dark style; optional CARTO raster basemap
+ScrollTrigger + MapLibre GL (custom dark style; optional HERE raster basemap
 online, fully functional offline). See
 `efforts/2026-11-01-static-demo-website/` and
 `reports/2026-11-01-demo-website-analysis.md`.

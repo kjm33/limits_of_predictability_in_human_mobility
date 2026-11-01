@@ -12,9 +12,13 @@
 
 - Tests: 143 green (`uv run pytest -q`); lint clean (`uv run ruff check src tests scripts dashboard`)
 - **Demo webpage (static scrollytelling)**: `make demo-serve` (builds + serves
-  on LAN, port 4173) or `make demo-dev`; data.json (232 KB) is committed, so a
+  on LAN, port 4173) or `make demo-dev`; data.json (250 KB) is committed, so a
   fresh clone needs only Node ≥ 20 — regenerate with `make demo-data`;
-  9 scenes, first load ~420 KB wire, MapLibre lazy; see README "Demo webpage"
+  9 scenes, first load ~430 KB wire, MapLibre lazy. Hex map has r9/r8/r7 level
+  buttons + scroll-driven mode, fits the home-anchored core of stops (a 900 km
+  trip is excluded from the initial view). Optional HERE street basemap: open
+  `?here_key=YOUR_KEY` once (platform.here.com key, stored in localStorage);
+  without it the maps run fully offline. See README "Demo webpage"
 - **Demo dashboard**: `uv run --group demo streamlit run dashboard/app.py` — six pages
   over the curated package in `data/processed/dashboard/` (~12 MB, 26 ms warm reads);
   see README "Demo dashboard"

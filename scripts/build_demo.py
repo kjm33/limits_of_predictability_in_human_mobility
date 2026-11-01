@@ -17,7 +17,7 @@ Schema (top level):
              wanderer:{...}}
   user022 : {pi:{N,S_unc,S_actual,Pi_actual},
              cells:[{i,h3,lat,lon,label}],
-             hexes:{r9,r8},          # GeoJSON FeatureCollections
+             hexes:{r9,r8,r7},       # GeoJSON FeatureCollections
              seq:{h0:[hours],cell:[i],known:[0/1]},
              stops:[{lat,lon,t,dwell}],         # <=1500, t = minutes since first
              grids:{"5"|"15"|"60":{nb,cells:[i|-1],support:[n weeks]}},
@@ -318,6 +318,8 @@ def build_user022() -> dict:
     stops_r8 = stops["h3_r9"].map(lambda c: h3.cell_to_parent(c, 8))
     # Vocabulary: r8 cells (seq.h3 is r8; stop cells roll up via cell_to_parent).
     vocab = sorted(set(seq["h3"].dropna()) | set(stops_r8.dropna()))
+    # District-level r7 cells, also derived the official way (parent of parent).
+    vocab7 = sorted({h3.cell_to_parent(h, 7) for h in vocab})
     vidx = {h: i for i, h in enumerate(vocab)}
     label_by_r8 = {
         r["modal_h3_r8"]: (r["label"] or None) for _, r in places.iterrows()
@@ -368,6 +370,7 @@ def build_user022() -> dict:
         "hexes": {
             "r9": hexes_geojson(sorted(stops["h3_r9"].dropna().unique())),
             "r8": hexes_geojson(vocab),
+            "r7": hexes_geojson(vocab7),
         },
         "seq": {
             "h0": hours.astype(int).tolist(),
