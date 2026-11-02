@@ -51,7 +51,7 @@
   const steps = [
     {
       t: "Cut the city into hexagons",
-      b: "Every stop is pinned to a hexagonal cell from Uber's H3 grid. The smallest cells we use, r9, cover about 0.10 km² each — roughly a city block. The diagram shows how seven of them fold into one bigger cell.",
+      b: "Every stop is pinned to a hexagonal cell from Uber's H3 grid. The smallest cells we use, r9, cover about 0.10 km² each — roughly a city block. The diagram shows how seven of them fold into one bigger cell. The 2010 paper used phone-tower zones of a few km²; we use H3 hexagons for the same job — nameable boxes for places — at a grain you can pick.",
     },
     {
       t: "Why hexagons, not squares?",

@@ -134,7 +134,8 @@
       <p>Regularity is common but not universal: about half of well-watched
       people have machine-detectable weekly rhythms, and when the rules fire,
       they are right ~9 times in 10. The rest of us are genuinely harder —
-      and that gap is measurable, not mysterious.</p>
+      and that gap is measurable, not mysterious. Enough to act on — the last
+      scene shows what an agent does with it.</p>
     </div>
   </div>
 </Section>

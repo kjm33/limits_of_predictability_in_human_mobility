@@ -100,7 +100,9 @@
     are known, {steady.toLocaleString()} of them repeat in 3+ different weeks
     (same color, same time). 5-minute slices are too nervous — one detour to a
     kiosk shatters them; 60-minute slices blur two after-work habits into one.
-    15 minutes is the sweet spot.</span>
+    15 minutes is the sweet spot. (Two clocks run through this story: routines
+    use these quarter-hours; the predictability analysis coming up uses one
+    location per hour — the 2010 paper's choice.)</span>
   </p>
 </Section>
 

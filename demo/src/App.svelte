@@ -1,30 +1,32 @@
 <script>
   import { loadDemoData } from "./lib/data.js";
   import Hero from "./scenes/Hero.svelte";
+  import Goal from "./scenes/Goal.svelte";
   import DataGallery from "./scenes/DataGallery.svelte";
+  import Discretize from "./scenes/Discretize.svelte";
   import Funnel from "./scenes/Funnel.svelte";
   import HexMap from "./scenes/HexMap.svelte";
   import BucketClock from "./scenes/BucketClock.svelte";
-  import Discretize from "./scenes/Discretize.svelte";
   import GzipWalk from "./scenes/GzipWalk.svelte";
   import GuessGame from "./scenes/GuessGame.svelte";
   import PatternBars from "./scenes/PatternBars.svelte";
-  import TriggerDial from "./scenes/TriggerDial.svelte";
   import Punchline from "./scenes/Punchline.svelte";
+  import TriggerDial from "./scenes/TriggerDial.svelte";
 
 
   const SECTIONS = [
-    ["hero", "Intro"],
+    ["hero", "Inspiration"],
+    ["goal", "The goal"],
     ["data", "Data"],
+    ["discretize", "Continuous → discrete"],
     ["funnel", "Noise → places"],
     ["hex", "Hexagons"],
     ["buckets", "Time slots"],
-    ["discretize", "Continuous → discrete"],
     ["lz", "The gzip trick"],
     ["entropy", "Guessing game"],
-    ["patterns", "Results"],
-    ["trigger", "Triggers"],
-    ["punchline", "Punchline"],
+    ["patterns", "Routines"],
+    ["punchline", "Results"],
+    ["trigger", "The agent"],
   ];
 
   let d = $state(null);
@@ -74,29 +76,32 @@
   </nav>
 
   <Hero {d} />
+  <Goal {d} />
   <DataGallery {d} />
+  <Discretize {d} />
   <Funnel {d} />
   <HexMap {d} />
   <BucketClock {d} />
-  <Discretize {d} />
   <GzipWalk {d} />
   <GuessGame {d} />
   <PatternBars {d} />
-  <TriggerDial {d} />
   <Punchline {d} />
+  <TriggerDial {d} />
 
   <footer>
     <div class="wrap">
       <p>
         Built from <b>{(d.hero.records / 1e6).toFixed(0)}M raw records</b> of
-        GeoLife, YJMob100K, Foursquare (NYC/Tokyo), Gowalla and Brightkite.
-        Every number on this page is computed by <code>scripts/build_demo.py</code>
-        from the processed parquets — nothing hand-typed. The research dashboard
-        with full model comparisons lives in <code>dashboard/</code>.
+        GeoLife, YJMob100K, Foursquare (NYC/Tokyo), Gowalla and Brightkite —
+        re-asking the question of Song et al. (2010),
+        <i>Limits of Predictability in Human Mobility</i>. Every number on
+        this page is computed by <code>scripts/build_demo.py</code>
+        from the processed parquets — nothing hand-typed. The research
+        dashboard with full model comparisons lives in <code>dashboard/</code>.
       </p>
       <p class="fine">
-        Prediction: next-place forecasting under the limits measured by Song et
-        al. (2010). H3 grid © Uber.
+        Prediction: next-place forecasting under the measured limits. H3 grid
+        © Uber.
       </p>
     </div>
   </footer>

@@ -35,12 +35,19 @@
 
 <Section
   id="trigger"
-  kicker="The payoff"
-  title="Rules that fire on Monday at 15:00"
-  lede="Every routine card is a tiny prediction rule: IF weekday and IF you are
-  seen leaving place X inside this quarter-hour, THEN you are going to Y. Pick a
-  weekday and time — watch what fires for our Beijing volunteer."
+  kicker="The proactive agent"
+  title="Monday, 15:00 — the agent speaks up"
+  lede="Everything in this story was counting: which hexagon, which weekday,
+  which quarter-hour. Counting is cheap — an agent can do it on the device
+  itself, so the location history it learns from never has to leave it.
+  Pick a moment; watch what it would offer."
 >
+  <div class="flow" data-reveal>
+    <div class="fstep"><b>1 · Context</b><span>Monday 15:04, seen leaving home</span></div>
+    <div class="fstep"><b>2 · Memory</b><span>a rule with weeks of evidence behind it</span></div>
+    <div class="fstep"><b>3 · Offer</b><span>the route, ready before you ask</span></div>
+  </div>
+
   <div class="ctrl" data-reveal>
     <div class="days">
       {#each WEEKDAYS as wd, i (wd)}
@@ -57,7 +64,7 @@
 
     <div class="status" bind:this={statusEl} class:fire={card}>
       {#if card}
-        <div class="shead">⚡ rule fires</div>
+        <div class="shead">⚡ the agent offers</div>
         <p class="sbody">
           <b>{WEEKDAYS[card.weekday]} {card.bucket_str}</b> — leaving
           <b>{card.o_label || "home"}</b>, this person went to the same
@@ -65,8 +72,9 @@
           (confidence {Math.round(card.confidence * 100)}%).
         </p>
         <p class="sverdict">
-          Prediction: <b>going to {card.d_label || "the same place again"}</b> —
-          and in GeoLife overall such fired predictions were right
+          “Usual trip starting — want the route to
+          <b>{card.d_label || "the usual place"}</b>?” Offered before it was
+          asked for — and in GeoLife, offers like this were right
           <b>9 times out of 10</b>.
         </p>
       {:else if guessCell !== -1 && guessCell != null}
@@ -86,14 +94,29 @@
     </div>
 
     <p class="note" data-reveal>
-      The rule fires only when the person is actually seen leaving the origin
-      in that window — a trigger, not a horoscope. Across GeoLife the trigger
-      fired 190 times in the held-out test period and was right 170 times.
+      The offer goes out only when the person is actually seen leaving the
+      origin in that window — a trigger, not a horoscope. Across GeoLife the
+      trigger fired 190 times in the held-out test period and was right 170
+      times. And all of it is counting: cheap enough to run on the device
+      itself, so the history it learns from never has to leave it. Accept the
+      route, and only the origin → destination pair goes to the router.
     </p>
   </div>
 </Section>
 
 <style>
+  .flow {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    max-width: 880px; margin: 24px auto 0;
+  }
+  .fstep {
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--panel); padding: 12px 16px;
+    display: grid; gap: 3px; text-align: center;
+  }
+  .fstep b { color: var(--accent); font-size: 12.5px; letter-spacing: 0.08em;
+             text-transform: uppercase; }
+  .fstep span { color: var(--muted); font-size: 13.5px; line-height: 1.4; }
   .ctrl { max-width: 880px; margin: 24px auto 0; }
   .days { display: flex; gap: 6px; flex-wrap: wrap; }
   .days button { padding: 7px 0; flex: 1; min-width: 52px; text-align: center; }
@@ -116,4 +139,5 @@
   .sbody { color: var(--muted); }
   .sbody b { color: var(--ink); }
   .sverdict { color: var(--accent); font-size: 15px; }
+  @media (max-width: 720px) { .flow { grid-template-columns: 1fr; } }
 </style>

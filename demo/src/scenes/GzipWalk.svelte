@@ -58,8 +58,10 @@
   kicker="The gzip trick"
   title="A diary is a file you can compress"
   lede="Zip programs shrink files by noticing repeats and saying “same as
-  before”. Run that on a diary of places and the leftovers — the parts you
-  couldn't have guessed — are exactly the surprise S from the betting game.
+  before”. Run the same idea on a diary of places and what's left over — the
+  parts no memory of the past could have guessed — is that person's leftover
+  surprise, measured in bits. The authors of the 2010 paper used exactly this
+  family of compressor to measure it; we count repeated blocks the same way.
   First on three toy lives, then on 96 real hours."
 >
   <div class="grid two">
@@ -82,7 +84,8 @@
         New information per hour, with memory: <b>0 bits</b> for the routine,
         <b>1.14</b> for the drum beat (barely more than its 1.0 without memory —
         you must learn the beat once), <b>2.0</b> for the free rein — the
-        maximum, every hour genuinely new.
+        maximum, every hour genuinely new. Nobody zips an actual file here:
+        “gzip” is the analogy, the block-counting is real.
       </p>
     </div>
 
@@ -147,7 +150,9 @@
     <span class="words">Read aloud: surprise is what compression can't remove.
     The routine zips to nothing, the wanderer barely zips at all — and our
     volunteer sits near the routine end: 1.48 bits left out of a possible 6.7
-    per hour.</span>
+    per hour. This doubles as a filter: a diary that zips well belongs to
+    someone worth trying to predict; one that barely zips does not. The next
+    scene turns those leftover bits into a hard ceiling — per person.</span>
   </p>
 </Section>
 

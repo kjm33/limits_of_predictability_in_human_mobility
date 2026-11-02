@@ -125,8 +125,8 @@
         Diary B is the wanderer: history barely helps (2.98 → 2.72), capping
         anyone at <b>~37 in 100</b>. The gap between those two numbers — surprise
         with vs without memory — is the entire reason “where will you be next”
-        is learnable at all. Real people sit in between; where exactly, the next
-        section shows.
+        is learnable at all. Real people sit in between; where exactly, the
+        panels below show.
       </p>
     {/if}
   </div>
@@ -136,10 +136,10 @@
       <div class="fleft">
         <h3>From surprise to a ceiling</h3>
         <p class="fsub">
-          One referee's rule turns bits into a maximum accuracy: for a diary
-          with N = {F.n} places, surprise S fixes the best score <em>any</em>
-          algorithm could ever reach — the curve below. Our volunteer sits at
-          S = {u.S_actual} bits.
+          One referee's rule — <em>Fano's inequality</em> — turns bits into a
+          maximum accuracy: for a diary with N = {F.n} places, surprise S fixes
+          the best score <em>any</em> algorithm could ever reach — the curve
+          below. Our volunteer sits at S = {u.S_actual} bits.
         </p>
         <svg viewBox="0 0 {W} {H}" role="img" aria-label="Fano curve from surprise to best possible accuracy">
           {#each [0, 0.25, 0.5, 0.75, 1] as g (g)}
@@ -199,6 +199,14 @@
           Dense GPS diaries push people over the 80% line; sparse check-in
           diaries barely get anyone there. The sensing regime — not the city,
           not the year — sets the ceiling.
+        </p>
+        <p class="fnote sel">
+          This is also the selection rule for a proactive agent: measure the
+          leftover surprise, convert it with Fano, and spend the effort only
+          on people whose ceiling is high — they are the ones for whom
+          prediction can work at all. But a ceiling is <em>potential</em>,
+          proven in principle; it is not a promise of accuracy. Turning it
+          into actual predictions is the next scene's job.
         </p>
       </div>
     </div>
@@ -267,6 +275,8 @@
   .hval { font-size: 13px; color: var(--accent); font-weight: 700; }
   .fnote { color: var(--muted); font-size: 13px; line-height: 1.5;
            margin: 12px 0 0; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .fnote.sel { border-top: none; margin-top: 8px; }
+  .fnote em { color: var(--ink); font-style: italic; }
   @media (max-width: 860px) {
     .two { grid-template-columns: 1fr; }
     .fano { grid-template-columns: 1fr; }
