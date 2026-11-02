@@ -41,3 +41,17 @@
 The page now argues a single thesis — regularity is measurable, ceilings are
 per-person, and counting is enough to act on — and ends with the agent it
 was always about.
+
+## Follow-up (2026-11-02, same day)
+
+- User spotted a gap: the story jumped from "discrete cells + buckets" to
+  finished routines without showing *how the counting works*. Added scene 10
+  of 13, "The tally" (`demo/src/scenes/TripTally.svelte`, between the guessing
+  game and routines): illustrative four-Monday diary → group by person/origin/
+  weekday/quarter-hour → tally votes → support (3 weeks) / confidence (3 of 4
+  trips) / stability (3 of 4 weeks) → three gates + routine card, anchored by
+  user 022's real card (Mondays 15:00–15:15, 3 trips in 3 weeks, confidence
+  100%). Plain-language note saved as
+  `notes/2026-11-02-how-routine-counting-works.md`. Build, pytest (149), ruff
+  all green again.
+

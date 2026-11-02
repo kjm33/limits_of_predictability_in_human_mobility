@@ -14,11 +14,15 @@
 - **Demo webpage (static scrollytelling)**: `make demo-serve` (builds + serves
   on LAN, port 4173) or `make demo-dev`; data.json (279 KB) is committed, so a
   fresh clone needs only Node ≥ 20 — regenerate with `make demo-data`;
-  12 scenes in a story arc (2026-11-02 revamp): inspiration (Song et al. 2010
+  13 scenes in a story arc (2026-11-02 revamp + same-day tally follow-up):
+  inspiration (Song et al. 2010
   paper card, 93% labelled as ceiling) → goal (proactive on-device agent) →
   data → discretize → funnel → hexagons → time buckets → gzip trick (+
   low-entropy filter idea) → guessing game (+ Fano as the selection rule) →
-  routines → results → proactive-agent finale (TriggerDial reworked from
+  the tally (how routines get counted: group trips by person/origin/weekday/
+  quarter-hour, count support/confidence/stability — see
+  `notes/2026-11-02-how-routine-counting-works.md`) → routines → results →
+  proactive-agent finale (TriggerDial reworked from
   "The payoff"; context→memory→offer strip, on-device privacy note). No map
   library (schematic SVG hexagons). Background math note:
   `notes/2026-11-01-markov-fano-s-explained.md`. See README "Demo webpage"

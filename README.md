@@ -44,7 +44,7 @@ The dashboard reads only the curated package in `data/processed/dashboard/`
 ## Demo webpage (static scrollytelling)
 
 A lightweight one-page website for a general audience — no equations, no
-framework runtime shipped, no browser freeze. It tells one story in 12 scenes:
+framework runtime shipped, no browser freeze. It tells one story in 13 scenes:
 the inspiration (Song et al. 2010 and its 93% *potential* predictability —
 labelled as a ceiling, not an achieved accuracy), the goal (a proactive
 navigation agent whose counting methods can run on-device, so the location
@@ -53,7 +53,9 @@ step (raw GPS → H3 hexagons × quarter-hour buckets), the noise→places funne
 the hexagon explainer, the 15-minute bucket clock, the gzip trick (leftover
 surprise measured by compressor-style block counting — doubles as a filter
 for who is worth predicting), the entropy guessing game with Fano's
-inequality as the selection rule, pattern-detection rates, the honest
+inequality as the selection rule, the trip tally (how grouping and counting
+turns four Mondays into one routine rule — support, confidence, stability),
+pattern-detection rates, the honest
 results punchline, and the proactive-agent finale: an interactive
 weekday×time console where the agent offers a real routine card for GeoLife
 user 022 before it's asked for. No map tiles, no WebGL, no API keys —

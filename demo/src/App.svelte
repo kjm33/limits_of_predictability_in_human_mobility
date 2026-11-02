@@ -9,6 +9,7 @@
   import BucketClock from "./scenes/BucketClock.svelte";
   import GzipWalk from "./scenes/GzipWalk.svelte";
   import GuessGame from "./scenes/GuessGame.svelte";
+  import TripTally from "./scenes/TripTally.svelte";
   import PatternBars from "./scenes/PatternBars.svelte";
   import Punchline from "./scenes/Punchline.svelte";
   import TriggerDial from "./scenes/TriggerDial.svelte";
@@ -24,6 +25,7 @@
     ["buckets", "Time slots"],
     ["lz", "The gzip trick"],
     ["entropy", "Guessing game"],
+    ["tally", "The tally"],
     ["patterns", "Routines"],
     ["punchline", "Results"],
     ["trigger", "The agent"],
@@ -84,6 +86,7 @@
   <BucketClock {d} />
   <GzipWalk {d} />
   <GuessGame {d} />
+  <TripTally {d} />
   <PatternBars {d} />
   <Punchline {d} />
   <TriggerDial {d} />

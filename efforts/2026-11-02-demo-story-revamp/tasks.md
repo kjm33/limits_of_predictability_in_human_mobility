@@ -23,6 +23,14 @@ build + checks → docs/state close-out.
 - [x] 2026-11-02: `npm run build` green; pytest + ruff green
 - [x] 2026-11-02: README demo paragraph, STATE.md, efforts/README.md, outcome.md, commit
 
+## Follow-up (2026-11-02, same day)
+
+- [x] 2026-11-02: TripTally.svelte "The tally" scene (how routines get
+      counted: trips→rows→group→tally; support/confidence/stability; gates +
+      card; real 022 anchor) wired between guessing game and routines → 13
+      scenes; note `notes/2026-11-02-how-routine-counting-works.md`;
+      build + pytest + ruff green
+
 ## Blockers / open questions
 
 - none
