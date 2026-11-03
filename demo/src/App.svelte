@@ -19,10 +19,10 @@
     ["hero", "Inspiration"],
     ["goal", "The goal"],
     ["data", "Data"],
-    ["discretize", "Continuous → discrete"],
     ["funnel", "Noise → places"],
     ["hex", "Hexagons"],
     ["buckets", "Time slots"],
+    ["discretize", "Continuous → discrete"],
     ["lz", "The gzip trick"],
     ["entropy", "Guessing game"],
     ["tally", "The tally"],
@@ -80,10 +80,10 @@
   <Hero {d} />
   <Goal {d} />
   <DataGallery {d} />
-  <Discretize {d} />
   <Funnel {d} />
   <HexMap {d} />
   <BucketClock {d} />
+  <Discretize {d} />
   <GzipWalk {d} />
   <GuessGame {d} />
   <TripTally {d} />
