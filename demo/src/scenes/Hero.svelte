@@ -8,7 +8,7 @@
 <section class="scene hero" id="hero">
   <div class="wrap">
     <p class="kicker" data-reveal>The inspiration · Song et al., Science 2010</p>
-    <h1 data-reveal>How regular<br />are we?</h1>
+    <h1 data-reveal>Monday, 15:04 —<br />Your Agent Speaks First</h1>
     <p class="lede" data-reveal>
       In 2010, four physicists asked a question navigation apps had quietly
       given up on: <strong>is your next location predictable at all — and by
